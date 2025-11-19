@@ -1,7 +1,6 @@
-import { useAuth } from '@/utils/auth/useAuth';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
@@ -19,17 +18,15 @@ const queryClient = new QueryClient({
 });
 
 export default function RootLayout() {
-  const { initiate, isReady } = useAuth();
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    initiate();
-  }, [initiate]);
-
-  useEffect(() => {
-    if (isReady) {
+    // Just hide splash screen without auth check
+    setTimeout(() => {
+      setIsReady(true);
       SplashScreen.hideAsync();
-    }
-  }, [isReady]);
+    }, 100);
+  }, []);
 
   if (!isReady) {
     return null;
@@ -39,15 +36,25 @@ export default function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <Stack screenOptions={{ headerShown: false }}>
-          {/* Auth Screens */}
+          {/* Index redirects to tabs */}
           <Stack.Screen name="index" />
+          
+          {/* Auth Screens */}
           <Stack.Screen 
             name="login" 
-            options={{ headerShown: false, animation: 'fade' }} 
+            options={{ 
+              headerShown: false, 
+              animation: 'slide_from_right',
+              presentation: 'card'
+            }} 
           />
           <Stack.Screen 
             name="signup" 
-            options={{ headerShown: false, animation: 'fade' }} 
+            options={{ 
+              headerShown: false, 
+              animation: 'slide_from_right',
+              presentation: 'card'
+            }} 
           />
           
           {/* Main App Tabs */}

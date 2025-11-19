@@ -1,33 +1,14 @@
 import { Tabs } from 'expo-router';
 import { useRouter } from 'expo-router';
-import { useEffect } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { 
   BarChart3, 
   Settings, 
-  MapPin,
-  Users
+  Users,
+  User
 } from 'lucide-react-native';
 
 export default function TabLayout() {
   const router = useRouter();
-
-  // Check authentication on mount
-  useEffect(() => {
-    checkAuth();
-  }, []);
-
-  const checkAuth = async () => {
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) {
-        router.replace('/login');
-      }
-    } catch (error) {
-      console.error('Auth check failed:', error);
-      router.replace('/login');
-    }
-  };
 
   return (
     <Tabs
@@ -56,47 +37,55 @@ export default function TabLayout() {
         name="reports"
         options={{
           title: 'Reports',
-          tabBarIcon: ({ color, size }) => (
+          tabBarIcon: ({ color }) => (
             <BarChart3 color={color} size={22} />
           ),
         }}
       />
-      
+
       <Tabs.Screen
         name="debtors"
         options={{
           title: 'Debtors',
-          tabBarIcon: ({ color, size }) => (
+          tabBarIcon: ({ color }) => (
             <Users color={color} size={22} />
           ),
         }}
       />
-      
-      <Tabs.Screen
-        name="visit"
-        options={{
-          title: 'Visit',
-          tabBarIcon: ({ color, size }) => (
-            <MapPin color={color} size={22} />
-          ),
-        }}
-      />
-      
+
       <Tabs.Screen
         name="settings"
         options={{
           title: 'Settings',
-          tabBarIcon: ({ color, size }) => (
+          tabBarIcon: ({ color }) => (
             <Settings color={color} size={22} />
           ),
         }}
       />
-      
+
+      {/* Profile Button - navigates to login */}
       <Tabs.Screen
-        name="debtor/[id]"
+        name="profile"
         options={{
-          href: null, // Hide this tab from the tab bar
+          title: 'Profile',
+          tabBarIcon: ({ color }) => (
+            <User color={color} size={22} />
+          ),
         }}
+        listeners={{
+          tabPress: (e) => {
+            e.preventDefault();
+            router.push('/login');
+          },
+        }}
+      />
+
+      {/* Hidden screen - only use href: null, no tabBarButton */}
+      <Tabs.Screen 
+        name="debtor/[id]" 
+        options={{ 
+          href: null,
+        }} 
       />
     </Tabs>
   );
