@@ -14,48 +14,28 @@ import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { 
-  DollarSign,
-  Mail,
   Lock,
   Eye,
   EyeOff,
   ArrowRight,
   ArrowLeft,
-  AlertCircle
+  AlertCircle,
+  User,
+  X
 } from 'lucide-react-native';
 
 export default function Login() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [emailError, setEmailError] = useState('');
-
-  // Email validation
-  const validateEmail = (email) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  };
-
-  const handleEmailChange = (text) => {
-    setEmail(text);
-    if (text && !validateEmail(text)) {
-      setEmailError('Please enter a valid email address');
-    } else {
-      setEmailError('');
-    }
-  };
+  const [showToast, setShowToast] = useState(false);
 
   const handleLogin = () => {
     // Validate fields
-    if (!email.trim()) {
-      alert('Please enter your email address');
-      return;
-    }
-    
-    if (!validateEmail(email)) {
-      setEmailError('Please enter a valid email address');
+    if (!username.trim()) {
+      alert('Please enter your username');
       return;
     }
     
@@ -64,8 +44,12 @@ export default function Login() {
       return;
     }
     
-    console.log('Login clicked:', { email, password });
+    console.log('Login clicked:', { username, password });
     // TODO: Add your authentication logic here
+  };
+
+  const handleForgotPassword = () => {
+    setShowToast(true);
   };
 
   return (
@@ -92,6 +76,46 @@ export default function Login() {
       >
         <ArrowLeft color="#ffffff" size={24} />
       </TouchableOpacity>
+
+      {/* Toast Notification */}
+      {showToast && (
+        <View style={{
+          position: 'absolute',
+          top: insets.top + 80,
+          left: 24,
+          right: 24,
+          zIndex: 20,
+          backgroundColor: '#1e293b',
+          borderRadius: 12,
+          borderWidth: 1,
+          borderColor: '#3b82f6',
+          flexDirection: 'row',
+          alignItems: 'center',
+          padding: 16,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.3,
+          shadowRadius: 8,
+          elevation: 5,
+        }}>
+          <AlertCircle color="#3b82f6" size={20} />
+          <Text style={{
+            flex: 1,
+            color: '#ffffff',
+            fontSize: 14,
+            marginLeft: 12,
+            fontWeight: '500'
+          }}>
+            Please contact the administrator to reset your password
+          </Text>
+          <TouchableOpacity 
+            onPress={() => setShowToast(false)}
+            style={{ padding: 4 }}
+          >
+            <X color="#94a3b8" size={20} />
+          </TouchableOpacity>
+        </View>
+      )}
 
       <KeyboardAvoidingView 
         style={{ flex: 1 }}
@@ -121,7 +145,7 @@ export default function Login() {
                 justifyContent: 'center',
                 marginBottom: 24,
               }}>
-                <DollarSign color="#ffffff" size={40} />
+                <Lock color="#ffffff" size={40} />
               </View>
               
               <Text style={{ 
@@ -132,17 +156,9 @@ export default function Login() {
               }}>
                 Welcome Back
               </Text>
-              <Text style={{ 
-                color: '#94a3b8', 
-                fontSize: 16,
-                textAlign: 'center',
-                lineHeight: 24
-              }}>
-                Sign in to manage your debt collection
-              </Text>
             </View>
 
-            {/* Email Input */}
+            {/* Username Input */}
             <View style={{ marginBottom: 16 }}>
               <Text style={{ 
                 color: '#94a3b8', 
@@ -150,18 +166,18 @@ export default function Login() {
                 fontWeight: '600',
                 marginBottom: 8 
               }}>
-                Email Address
+                Username
               </Text>
               <View style={{
                 backgroundColor: '#1e293b',
                 borderRadius: 12,
                 borderWidth: 1,
-                borderColor: emailError ? '#ef4444' : '#334155',
+                borderColor: '#334155',
                 flexDirection: 'row',
                 alignItems: 'center',
                 paddingHorizontal: 16,
               }}>
-                <Mail color={emailError ? '#ef4444' : '#64748b'} size={20} />
+                <User color="#64748b" size={20} />
                 <TextInput
                   style={{
                     flex: 1,
@@ -170,27 +186,17 @@ export default function Login() {
                     paddingVertical: 16,
                     marginLeft: 12,
                   }}
-                  placeholder="Enter your email"
+                  placeholder="Enter your username"
                   placeholderTextColor="#64748b"
-                  value={email}
-                  onChangeText={handleEmailChange}
-                  keyboardType="email-address"
+                  value={username}
+                  onChangeText={setUsername}
                   autoCapitalize="none"
-                  autoComplete="email"
                 />
               </View>
-              {emailError ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
-                  <AlertCircle color="#ef4444" size={14} />
-                  <Text style={{ color: '#ef4444', fontSize: 12, marginLeft: 4, fontWeight: '600' }}>
-                    {emailError}
-                  </Text>
-                </View>
-              ) : null}
             </View>
 
             {/* Password Input */}
-            <View style={{ marginBottom: 24 }}>
+            <View style={{ marginBottom: 16 }}>
               <Text style={{ 
                 color: '#94a3b8', 
                 fontSize: 14, 
@@ -239,6 +245,7 @@ export default function Login() {
 
             {/* Forgot Password */}
             <TouchableOpacity 
+              onPress={handleForgotPassword}
               style={{ alignSelf: 'flex-end', marginBottom: 32 }}
             >
               <Text style={{ 
@@ -269,48 +276,10 @@ export default function Login() {
                 fontWeight: 'bold',
                 marginRight: 8
               }}>
-                Sign In
+                Login
               </Text>
               <ArrowRight color="#ffffff" size={20} />
             </TouchableOpacity>
-
-            {/* Divider */}
-            <View style={{ 
-              flexDirection: 'row', 
-              alignItems: 'center',
-              marginBottom: 24 
-            }}>
-              <View style={{ flex: 1, height: 1, backgroundColor: '#334155' }} />
-              <Text style={{ 
-                color: '#64748b', 
-                fontSize: 14,
-                marginHorizontal: 16 
-              }}>
-                OR
-              </Text>
-              <View style={{ flex: 1, height: 1, backgroundColor: '#334155' }} />
-            </View>
-
-            {/* Sign Up Link */}
-            <View style={{ 
-              flexDirection: 'row', 
-              justifyContent: 'center',
-              alignItems: 'center',
-              marginBottom: 20
-            }}>
-              <Text style={{ color: '#94a3b8', fontSize: 14 }}>
-                Don't have an account?{' '}
-              </Text>
-              <TouchableOpacity onPress={() => router.push('/signup')}>
-                <Text style={{ 
-                  color: '#3b82f6', 
-                  fontSize: 14,
-                  fontWeight: 'bold'
-                }}>
-                  Sign Up
-                </Text>
-              </TouchableOpacity>
-            </View>
           </ScrollView>
         </TouchableWithoutFeedback>
       </KeyboardAvoidingView>

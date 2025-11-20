@@ -48,14 +48,7 @@ export default function RootLayout() {
               presentation: 'card'
             }} 
           />
-          <Stack.Screen 
-            name="signup" 
-            options={{ 
-              headerShown: false, 
-              animation: 'slide_from_right',
-              presentation: 'card'
-            }} 
-          />
+        
           
           {/* Main App Tabs */}
           <Stack.Screen 
