@@ -1,61 +1,68 @@
-import { Stack } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AuthProvider, useAuth } from '../lib/authContext';
 
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
-      cacheTime: 1000 * 60 * 30, // 30 minutes
+      staleTime: 1000 * 60 * 5,
+      cacheTime: 1000 * 60 * 30,
       retry: 1,
       refetchOnWindowFocus: false,
     },
   },
 });
 
-export default function RootLayout() {
-  const [isReady, setIsReady] = useState(false);
+function RootNavigator() {
+  const router = useRouter();
+  const segments = useSegments();
+  const { isAuthenticated, isLoading } = useAuth();
 
+  // Handle navigation based on auth state
   useEffect(() => {
-    // Just hide splash screen without auth check
-    setTimeout(() => {
-      setIsReady(true);
+    if (isLoading) return;
+
+    const inTabsGroup = segments[0] === "(tabs)";
+
+    if (!isAuthenticated && inTabsGroup) {
+      // User not authenticated but trying to access tabs
+      router.replace("/login");
+    } else if (isAuthenticated && !inTabsGroup && segments[0] !== "index") {
+      // User authenticated but not in tabs, redirect to tabs
+      router.replace("/(tabs)/reports");
+    }
+  }, [isLoading, isAuthenticated, segments]);
+
+  // Hide splash screen when ready
+  useEffect(() => {
+    if (!isLoading) {
       SplashScreen.hideAsync();
-    }, 100);
-  }, []);
+    }
+  }, [isLoading]);
 
-  if (!isReady) {
-    return null;
-  }
+  if (isLoading) return null;
 
+  return (
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="index" />
+      <Stack.Screen name="login" />
+      <Stack.Screen name="(tabs)" />
+    </Stack>
+  );
+}
+
+export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <Stack screenOptions={{ headerShown: false }}>
-          {/* Index redirects to tabs */}
-          <Stack.Screen name="index" />
-          
-          {/* Auth Screens */}
-          <Stack.Screen 
-            name="login" 
-            options={{ 
-              headerShown: false, 
-              animation: 'slide_from_right',
-              presentation: 'card'
-            }} 
-          />
-        
-          
-          {/* Main App Tabs */}
-          <Stack.Screen 
-            name="(tabs)" 
-            options={{ headerShown: false }} 
-          />
-        </Stack>
+        <AuthProvider>
+          <RootNavigator />
+        </AuthProvider>
       </GestureHandlerRootView>
     </QueryClientProvider>
   );

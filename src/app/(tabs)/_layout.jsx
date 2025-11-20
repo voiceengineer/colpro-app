@@ -1,5 +1,4 @@
 import { Tabs } from 'expo-router';
-import { useRouter } from 'expo-router';
 import { 
   BarChart3, 
   Settings, 
@@ -8,8 +7,6 @@ import {
 } from 'lucide-react-native';
 
 export default function TabLayout() {
-  const router = useRouter();
-
   return (
     <Tabs
       screenOptions={{
@@ -63,7 +60,6 @@ export default function TabLayout() {
         }}
       />
 
-      {/* Profile Button - navigates to login */}
       <Tabs.Screen
         name="profile"
         options={{
@@ -72,15 +68,9 @@ export default function TabLayout() {
             <User color={color} size={22} />
           ),
         }}
-        listeners={{
-          tabPress: (e) => {
-            e.preventDefault();
-            router.push('/login');
-          },
-        }}
       />
 
-      {/* Hidden screen - only use href: null, no tabBarButton */}
+      {/* Hidden screen */}
       <Tabs.Screen 
         name="debtor/[id]" 
         options={{ 
