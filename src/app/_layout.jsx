@@ -23,20 +23,34 @@ function RootNavigator() {
   const segments = useSegments();
   const { isAuthenticated, isLoading } = useAuth();
 
-  // Handle navigation based on auth state
+  // Handle navigation - only for protected routes, not index
   useEffect(() => {
     if (isLoading) return;
+    
+    // Don't interfere with index screen navigation
+    if (segments[0] === undefined || segments[0] === 'index') return;
 
     const inTabsGroup = segments[0] === "(tabs)";
 
     if (!isAuthenticated && inTabsGroup) {
       // User not authenticated but trying to access tabs
       router.replace("/login");
-    } else if (isAuthenticated && !inTabsGroup && segments[0] !== "index") {
-      // User authenticated but not in tabs, redirect to tabs
+    } else if (isAuthenticated && segments[0] === 'login') {
+      // User authenticated but on login page
       router.replace("/(tabs)/reports");
     }
   }, [isLoading, isAuthenticated, segments]);
+
+  // Prevent direct access to +not-found page
+  useEffect(() => {
+    if (segments[0] === '+not-found') {
+      if (isAuthenticated) {
+        router.replace("/(tabs)/reports");
+      } else {
+        router.replace("/login");
+      }
+    }
+  }, [segments, isAuthenticated]);
 
   // Hide splash screen when ready
   useEffect(() => {
