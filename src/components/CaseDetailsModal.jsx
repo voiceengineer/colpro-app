@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   View, Text, Modal, TouchableOpacity, ScrollView, 
-  TextInput, Alert, ActivityIndicator, Platform
+  TextInput, Alert, ActivityIndicator
 } from 'react-native';
 import { 
   X, User, FileText, CreditCard, Upload, 
@@ -46,28 +46,37 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
   };
 
   const fetchAllData = async () => {
+    console.log('🔄 [FETCH DATA] Starting data fetch for case:', caseId);
     setLoading(true);
     try {
+      console.log('🔄 [FETCH DATA] Fetching case and statuses...');
       const [caseResponse, statusesResponse] = await Promise.all([
         authService.getCaseById(caseId),
         authService.getCaseStatuses()
       ]);
+      
+      console.log('✅ [FETCH DATA] Case data received:', caseResponse);
+      console.log('✅ [FETCH DATA] Statuses received:', statusesResponse);
       
       setCaseData(caseResponse);
       setStatuses(statusesResponse || []);
       setSelectedStatusId(caseResponse.status?.id || caseResponse.statusId);
       setRemarks(caseResponse.notes || caseResponse.remarks || '');
 
-      // Fetch payment history if permission granted
       if (caseResponse.accountId && canViewPayments()) {
+        console.log('🔄 [FETCH DATA] Fetching payment history...');
         fetchPaymentHistory(caseResponse.accountId);
+      } else {
+        console.log('⚠️ [FETCH DATA] Skipping payment history - no accountId or no permission');
       }
       
     } catch (error) {
-      handleError(error, 'Failed to load case details');
+      console.error('❌ [FETCH DATA] Error:', error);
+      handleError(error);
       onClose();
     } finally {
       setLoading(false);
+      console.log('🔄 [FETCH DATA] Fetch complete');
     }
   };
 
@@ -76,16 +85,18 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
       const paymentData = await authService.getPaymentHistory(accountId);
       setPayments(paymentData);
     } catch (error) {
-      console.log('Payment history error:', error);
       setPayments([]);
     }
   };
 
   const handleUpdateCase = async () => {
+    console.log('✏️ [UPDATE] Starting case update...');
+    
     if (!canEditCases()) {
-      showPermissionError(
-        'Update Case',
-        `You are logged in as "${userRole}". Updating cases requires both "edit_hard_collection" and "manage_hard_collection" permissions.\n\nPlease contact your administrator.`
+      console.log('⚠️ [UPDATE] No permission to edit');
+      Alert.alert(
+        'Permission Required',
+        'You need "edit_hard_collection" and "manage_hard_collection" permissions to update cases.'
       );
       return;
     }
@@ -93,10 +104,19 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
     const currentStatusId = caseData?.status?.id || caseData?.statusId;
     const currentRemarks = caseData?.notes || caseData?.remarks || '';
     
+    console.log('✏️ [UPDATE] Current status ID:', currentStatusId);
+    console.log('✏️ [UPDATE] Selected status ID:', selectedStatusId);
+    console.log('✏️ [UPDATE] Current remarks:', currentRemarks);
+    console.log('✏️ [UPDATE] New remarks:', remarks);
+    
     const hasStatusChange = selectedStatusId && selectedStatusId !== currentStatusId;
     const hasRemarksChange = remarks.trim() !== currentRemarks;
 
+    console.log('✏️ [UPDATE] Has status change:', hasStatusChange);
+    console.log('✏️ [UPDATE] Has remarks change:', hasRemarksChange);
+
     if (!hasStatusChange && !hasRemarksChange) {
+      console.log('⚠️ [UPDATE] No changes detected');
       Alert.alert('No Changes', 'Please make changes before saving');
       return;
     }
@@ -113,84 +133,138 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
         updateData.notes = remarks.trim();
       }
 
-      await authService.updateCase(caseId, updateData);
+      console.log('✏️ [UPDATE] Update data:', updateData);
+      console.log('✏️ [UPDATE] Sending update request...');
 
+      const result = await authService.updateCase(caseId, updateData);
+
+      console.log('✅ [UPDATE] Update successful:', result);
       Alert.alert('Success', 'Case updated successfully');
       onUpdate?.();
       onClose();
       
     } catch (error) {
-      handleError(error, 'Failed to update case');
+      console.error('❌ [UPDATE] Update failed:', error);
+      handleError(error);
     } finally {
       setUpdating(false);
+      console.log('✏️ [UPDATE] Update process finished');
     }
   };
 
   const handleUploadImage = async () => {
+    console.log('📤 [UPLOAD BTN] Upload button pressed');
+    
     if (!canUploadDocuments()) {
-      showPermissionError(
-        'Upload Document',
-        `You are logged in as "${userRole}". Uploading documents requires "view_hard_collection" permission.\n\nPlease contact your administrator.`
+      console.log('⚠️ [UPLOAD BTN] No permission');
+      Alert.alert(
+        'Permission Required',
+        'You need "view_hard_collection" permission to upload documents.'
       );
       return;
     }
     
+    // Check if backend endpoint is available
+    console.log('🔍 [UPLOAD BTN] Checking backend availability...');
     Alert.alert(
-      'Upload Document',
-      'Choose source',
+      '⚠️ Backend Configuration Required',
+      'The file upload feature requires the backend endpoint:\n\n' +
+      'POST /api/files/upload\n\n' +
+      'Please ensure:\n' +
+      '✓ Backend server is running\n' +
+      '✓ File upload endpoint is configured\n' +
+      '✓ Multer middleware is installed\n\n' +
+      'Do you want to continue anyway?',
       [
-        { text: 'Camera', onPress: () => pickFromCamera() },
-        { text: 'Gallery', onPress: () => pickFromGallery() },
-        { text: 'Cancel', style: 'cancel' }
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Try Upload', 
+          onPress: () => {
+            Alert.alert(
+              'Upload Document',
+              'Choose source',
+              [
+                { text: 'Camera', onPress: () => pickFromCamera() },
+                { text: 'Gallery', onPress: () => pickFromGallery() },
+                { text: 'Cancel', style: 'cancel' }
+              ]
+            );
+          }
+        }
       ]
     );
   };
 
   const pickFromCamera = async () => {
+    console.log('📷 [CAMERA] Requesting camera permission...');
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      console.log('📷 [CAMERA] Permission status:', status);
+      
       if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Camera permission is needed to take photos');
+        console.log('⚠️ [CAMERA] Permission denied');
+        Alert.alert('Permission Required', 'Camera permission is needed');
         return;
       }
 
+      console.log('📷 [CAMERA] Launching camera...');
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ['images'],
         allowsEditing: true,
         quality: 0.7,
       });
 
+      console.log('📷 [CAMERA] Result:', result);
+
       if (!result.canceled && result.assets[0]) {
+        console.log('📷 [CAMERA] Image captured, starting upload...');
         uploadDocument(result.assets[0]);
+      } else {
+        console.log('📷 [CAMERA] Camera canceled');
       }
     } catch (error) {
+      console.error('❌ [CAMERA] Error:', error);
       Alert.alert('Error', 'Failed to open camera');
     }
   };
 
   const pickFromGallery = async () => {
+    console.log('🖼️ [GALLERY] Requesting gallery permission...');
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      console.log('🖼️ [GALLERY] Permission status:', status);
+      
       if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Gallery permission is needed to select photos');
+        console.log('⚠️ [GALLERY] Permission denied');
+        Alert.alert('Permission Required', 'Gallery permission is needed');
         return;
       }
 
+      console.log('🖼️ [GALLERY] Launching gallery...');
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: true,
         quality: 0.7,
       });
 
+      console.log('🖼️ [GALLERY] Result:', result);
+
       if (!result.canceled && result.assets[0]) {
+        console.log('🖼️ [GALLERY] Image selected, starting upload...');
         uploadDocument(result.assets[0]);
+      } else {
+        console.log('🖼️ [GALLERY] Gallery canceled');
       }
     } catch (error) {
+      console.error('❌ [GALLERY] Error:', error);
       Alert.alert('Error', 'Failed to open gallery');
     }
   };
 
   const uploadDocument = async (asset) => {
+    console.log('📸 [UPLOAD DOC] Starting upload process...');
+    console.log('📸 [UPLOAD DOC] Asset:', asset);
+    
     setUploading(true);
     
     try {
@@ -199,44 +273,60 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
       const fileName = `case_${caseId}_${Date.now()}.${fileType}`;
       const mimeType = `image/${fileType === 'jpg' ? 'jpeg' : fileType}`;
 
-      await authService.uploadFile(caseId, asset.uri, fileName, mimeType);
+      console.log('📸 [UPLOAD DOC] Generated file name:', fileName);
+      console.log('📸 [UPLOAD DOC] MIME type:', mimeType);
+      console.log('📸 [UPLOAD DOC] Calling authService.uploadFile...');
 
+      const result = await authService.uploadFile(caseId, asset.uri, fileName, mimeType);
+      
+      console.log('✅ [UPLOAD DOC] Upload successful:', result);
       Alert.alert('Success', 'Document uploaded successfully');
       
     } catch (error) {
-      handleError(error, 'Failed to upload document');
+      console.error('❌ [UPLOAD DOC] Upload failed:', error);
+      handleError(error);
     } finally {
       setUploading(false);
+      console.log('📸 [UPLOAD DOC] Upload process finished');
     }
   };
 
-  const handleError = (error, defaultMessage) => {
+  const handleError = (error) => {
+    console.error('🚨 [ERROR HANDLER] Processing error:', error);
     let title = 'Error';
-    let message = defaultMessage;
+    let message = 'An error occurred';
 
     if (error.message === 'SERVER_UNAVAILABLE') {
-      title = 'Server Error';
-      message = 'The server is temporarily unavailable. Please make sure:\n\n1. Database migrations are run\n2. Backend server is running\n3. You have Admin or Field Agent role\n\nContact your system administrator.';
+      title = '502 Backend Error';
+      message = '⚠️ Backend Server Issue\n\n' +
+                'The upload was sent (100%) but the backend server is not responding.\n\n' +
+                'Possible causes:\n' +
+                '• Backend Node.js server crashed\n' +
+                '• File size too large (check backend limits)\n' +
+                '• Backend timeout during processing\n' +
+                '• Nginx cannot reach Node.js server\n\n' +
+                'Backend Team: Check server logs and restart if needed.\n\n' +
+                'Your file: The upload might have succeeded despite this error.';
     } else if (error.message === 'UNAUTHORIZED') {
-      title = 'Session Expired';
       message = 'Your session has expired. Please log in again.';
     } else if (error.message === 'FORBIDDEN') {
-      title = 'Permission Denied';
       message = 'You do not have permission to perform this action.';
     } else if (error.message === 'NETWORK_ERROR') {
-      title = 'Network Error';
-      message = 'Please check your internet connection and try again.';
-    } else if (error.message === 'TIMEOUT') {
-      title = 'Request Timeout';
-      message = 'The request took too long. Please try again.';
+      message = 'Network error. Please check your connection.';
+    } else if (error.message && error.message.includes('ENDPOINT_NOT_FOUND')) {
+      title = 'Upload Not Available';
+      message = '⚠️ Upload Feature Not Available\n\n' +
+                'The file upload endpoint is not configured on the backend server.\n\n' +
+                'Please contact your backend team to:\n' +
+                '1. Enable the POST /api/files/upload endpoint\n' +
+                '2. Configure file upload middleware\n' +
+                '3. Set up file storage\n\n' +
+                'Reference: API Documentation Section 5';
     } else if (error.message) {
       message = error.message;
     }
 
-    Alert.alert(title, message);
-  };
-
-  const showPermissionError = (title, message) => {
+    console.error('🚨 [ERROR HANDLER] Display message:', message);
     Alert.alert(title, message);
   };
 
@@ -313,7 +403,7 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
           }}>
             <ActivityIndicator size="large" color="#3b82f6" />
             <Text style={{ color: '#ffffff', marginTop: 16, fontSize: 15 }}>
-              Loading case details...
+              Loading...
             </Text>
           </View>
         </View>
@@ -438,7 +528,7 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
                   fontWeight: '600',
                   marginLeft: 10
                 }}>
-                  {canUploadDocuments() ? 'Upload Document' : '🔒 No Permission to Upload'}
+                  {canUploadDocuments() ? 'Upload Document' : 'Upload Restricted'}
                 </Text>
               </>
             )}
@@ -476,7 +566,7 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
               <Text style={{ color: canViewPayments() ? '#ffffff' : '#fbbf24', fontSize: 15, fontWeight: '600' }}>
                 {canViewPayments() 
                   ? `Payment History (${payments.length})`
-                  : '🔒 No Permission to View'}
+                  : 'Payment History'}
               </Text>
             </View>
             {canViewPayments() && (
@@ -501,10 +591,7 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
                 }}>
                   <AlertCircle color="#64748b" size={24} />
                   <Text style={{ color: '#64748b', fontSize: 13, marginTop: 8, textAlign: 'center' }}>
-                    No payment history available{'\n'}
-                    <Text style={{ fontSize: 11 }}>
-                      (Payment endpoint not ready from backend)
-                    </Text>
+                    No payment history available
                   </Text>
                 </View>
               ) : (
@@ -559,7 +646,7 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
             }}>
               <AlertCircle color="#fbbf24" size={20} />
               <Text style={{ color: '#fbbf24', fontSize: 13, marginLeft: 10, flex: 1 }}>
-                You are "{userRole}". Need "edit_hard_collection" & "manage_hard_collection" permissions.
+                Update restricted - missing required permissions
               </Text>
             </View>
           )}
@@ -677,7 +764,7 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
               <ActivityIndicator size="small" color="#ffffff" />
             ) : (
               <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '700' }}>
-                {canEditCases() ? 'Save Changes' : '🔒 No Permission to Update'}
+                {canEditCases() ? 'Save Changes' : 'Update Restricted'}
               </Text>
             )}
           </TouchableOpacity>
