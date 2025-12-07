@@ -83,34 +83,9 @@ export const authService = {
     }
   },
 
-  async getAllPermissions() {
-    try {
-      const token = await this.getToken();
-      if (!token) throw new Error("No authentication token found");
-
-      const response = await fetch(`${API_URL}/permissions`, {
-        method: "GET",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (response.status === 401) {
-        throw new Error("UNAUTHORIZED");
-      }
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch permissions: ${response.status}`);
-      }
-
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      throw error;
-    }
-  },
-
+  /**
+   * Check if user has a specific permission
+   */
   async hasPermission(permissionSlug) {
     try {
       const user = await this.getUser();
@@ -119,15 +94,18 @@ export const authService = {
         return false;
       }
 
+      // Handle permissions as array of strings (your API format)
       if (user.permissions && Array.isArray(user.permissions)) {
-        return user.permissions.some(p => 
-          p.slug === permissionSlug || p === permissionSlug
-        );
+        return user.permissions.includes(permissionSlug);
       }
 
+      // Fallback: Check role permissions
       if (user.role && user.role.permissions && Array.isArray(user.role.permissions)) {
+        if (user.role.permissions.some(p => typeof p === 'string')) {
+          return user.role.permissions.includes(permissionSlug);
+        }
         return user.role.permissions.some(p => 
-          p.slug === permissionSlug || p === permissionSlug
+          typeof p === 'object' && p.slug === permissionSlug
         );
       }
       
@@ -139,18 +117,14 @@ export const authService = {
 
   /**
    * Get all cases with filters
-   * According to documentation: GET /cases
-   * Query params: page, limit, search, statusId, priority, collectionStage, sortBy, sortOrder, agentId
    */
   async getCases(params = {}) {
     try {
       const token = await this.getToken();
       if (!token) throw new Error("No authentication token found");
 
-      // Build query parameters
       const queryParams = new URLSearchParams();
       
-      // Add all supported query parameters from documentation
       if (params.page) queryParams.append('page', params.page);
       if (params.limit) queryParams.append('limit', params.limit);
       if (params.search) queryParams.append('search', params.search);
@@ -172,13 +146,12 @@ export const authService = {
         },
       });
 
-      // Handle error responses
       if (response.status === 401) {
         throw new Error("UNAUTHORIZED");
       }
 
       if (response.status === 403) {
-        throw new Error("FORBIDDEN - Missing view_hard_collection permission");
+        throw new Error("FORBIDDEN");
       }
 
       if (!response.ok) {
@@ -186,7 +159,6 @@ export const authService = {
         throw new Error(`API Error ${response.status}: ${errorText}`);
       }
 
-      // Parse JSON response
       const data = await response.json();
       return data;
     } catch (error) {
@@ -196,7 +168,6 @@ export const authService = {
 
   /**
    * Get single case by ID
-   * According to documentation: GET /cases/{id}
    */
   async getCaseById(caseId) {
     try {
@@ -216,7 +187,7 @@ export const authService = {
       }
 
       if (response.status === 403) {
-        throw new Error("FORBIDDEN - Missing view_hard_collection permission");
+        throw new Error("FORBIDDEN");
       }
 
       if (response.status === 404) {
@@ -236,7 +207,6 @@ export const authService = {
 
   /**
    * Get case statuses
-   * According to documentation: GET /cases/statuses
    */
   async getCaseStatuses() {
     try {
@@ -271,37 +241,163 @@ export const authService = {
   },
 
   /**
-   * Count user's cases by filtering with agentId
-   * Uses GET /cases with agentId parameter
+   * Update case (status and/or remarks)
    */
-  async getUserCasesCount(userId) {
+  async updateCase(caseId, updateData) {
     try {
       const token = await this.getToken();
       if (!token) throw new Error("No authentication token found");
 
-      // Fetch cases filtered by agentId with high limit
+      const response = await fetch(`${API_URL}/cases/${caseId}`, {
+        method: "PATCH",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(updateData),
+      });
+
+      if (response.status === 401) {
+        throw new Error("UNAUTHORIZED");
+      }
+
+      if (response.status === 403) {
+        throw new Error("FORBIDDEN");
+      }
+
+      if (response.status === 502) {
+        throw new Error("SERVER_UNAVAILABLE");
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || "Failed to update case");
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  /**
+   * Upload file to case
+   */
+  async uploadFile(caseId, fileUri, fileName, mimeType) {
+    try {
+      const token = await this.getToken();
+      if (!token) throw new Error("No authentication token found");
+
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const response = JSON.parse(xhr.responseText);
+              resolve(response);
+            } catch (e) {
+              resolve({ success: true });
+            }
+          } else if (xhr.status === 502) {
+            reject(new Error("SERVER_UNAVAILABLE"));
+          } else if (xhr.status === 401) {
+            reject(new Error("UNAUTHORIZED"));
+          } else if (xhr.status === 403) {
+            reject(new Error("FORBIDDEN"));
+          } else {
+            try {
+              const errorData = JSON.parse(xhr.responseText);
+              reject(new Error(errorData.message || `Upload failed: ${xhr.status}`));
+            } catch (e) {
+              reject(new Error(`Upload failed: ${xhr.status}`));
+            }
+          }
+        };
+
+        xhr.onerror = () => reject(new Error("NETWORK_ERROR"));
+        xhr.ontimeout = () => reject(new Error("TIMEOUT"));
+
+        const formData = new FormData();
+        formData.append('file', {
+          uri: fileUri,
+          name: fileName,
+          type: mimeType
+        });
+        formData.append('entityType', 'case');
+        formData.append('entityId', String(caseId));
+        formData.append('documentType', 'photo');
+
+        xhr.open('POST', `${API_URL}/files/upload`);
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.send(formData);
+      });
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  /**
+   * Get payment history for account
+   * Returns empty array if endpoint is not available
+   */
+  async getPaymentHistory(accountId) {
+    try {
+      const token = await this.getToken();
+      if (!token) return [];
+
+      const response = await fetch(
+        `${API_URL}/payments?accountId=${accountId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      // If endpoint not ready, return empty array
+      if (response.status === 404 || response.status === 501) {
+        console.log('Payment endpoint not available yet');
+        return [];
+      }
+
+      if (response.ok) {
+        const data = await response.json();
+        return Array.isArray(data) ? data : (data.items || data.data || []);
+      }
+
+      return [];
+    } catch (error) {
+      console.log('Payment history error:', error);
+      return [];
+    }
+  },
+
+  /**
+   * Count user's cases
+   */
+  async getUserCasesCount(userId) {
+    try {
       const response = await this.getCases({ 
         agentId: userId, 
         limit: 1000 
       });
 
-      let count = 0;
-      
-      // Handle different response structures - FIXED TO INCLUDE items
       if (Array.isArray(response)) {
-        count = response.length;
+        return response.length;
       } else if (response?.items && Array.isArray(response.items)) {
-        // YOUR API FORMAT - items property
-        count = response.items.length;
+        return response.items.length;
       } else if (response?.data && Array.isArray(response.data)) {
-        count = response.data.length;
+        return response.data.length;
       } else if (response?.meta?.total !== undefined) {
-        count = response.meta.total;
+        return response.meta.total;
       } else if (response?.total !== undefined) {
-        count = response.total;
+        return response.total;
       }
 
-      return count;
+      return 0;
     } catch (error) {
       throw error;
     }

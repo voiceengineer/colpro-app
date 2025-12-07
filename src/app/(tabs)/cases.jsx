@@ -9,6 +9,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Search, Briefcase, Calendar, DollarSign, AlertCircle, User, Phone } from 'lucide-react-native';
 import { authService } from '../../lib/auth';
 import { useAuth } from '../../lib/authContext';
+import CaseDetailsModal from '../../components/CaseDetailsModal';
 
 export default function Cases() {
   const insets = useSafeAreaInsets();
@@ -24,6 +25,9 @@ export default function Cases() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const searchTimeoutRef = useRef(null);
+
+  const [selectedCaseId, setSelectedCaseId] = useState(null);
+  const [modalVisible, setModalVisible] = useState(false);
 
   useEffect(() => {
     if (user?.id) {
@@ -93,8 +97,6 @@ export default function Cases() {
       setPage(pageNum);
       
     } catch (error) {
-      console.error('Error fetching cases:', error);
-      
       if (error.message === 'UNAUTHORIZED') {
         Alert.alert('Session Expired', 'Please login again');
         router.replace('/login');
@@ -106,7 +108,7 @@ export default function Cases() {
         return;
       }
       
-      Alert.alert('Error', `Failed to load cases: ${error.message}`);
+      Alert.alert('Error', 'Failed to load cases');
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -124,6 +126,20 @@ export default function Cases() {
     if (!loadingMore && hasMore && !loading) {
       fetchCases(page + 1, false);
     }
+  };
+
+  const handleCasePress = (caseId) => {
+    setSelectedCaseId(caseId);
+    setModalVisible(true);
+  };
+
+  const handleModalClose = () => {
+    setModalVisible(false);
+    setSelectedCaseId(null);
+  };
+
+  const handleCaseUpdate = () => {
+    fetchCases(1, true);
   };
 
   const getPriorityColor = (priority) => {
@@ -145,14 +161,14 @@ export default function Cases() {
         month: 'short', 
         day: 'numeric' 
       });
-    } catch (error) {
+    } catch {
       return 'N/A';
     }
   };
 
   const formatCurrency = (amount) => {
     if (!amount && amount !== 0) return '0';
-    return amount.toLocaleString('en-US');
+    return Number(amount).toLocaleString('en-US');
   };
 
   const SkeletonCard = () => (
@@ -175,137 +191,142 @@ export default function Cases() {
     </View>
   );
 
-  const CaseCard = ({ item }) => (
-    <TouchableOpacity
-      style={{
-        backgroundColor: '#1e293b',
-        borderRadius: 12,
-        padding: 16,
-        marginBottom: 12,
-        borderWidth: 1,
-        borderColor: '#334155',
-      }}
-    >
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <Briefcase color="#3b82f6" size={18} />
-          <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600', marginLeft: 8 }}>
-            Case #{item.id}
-          </Text>
-        </View>
-        
-        <View style={{
-          backgroundColor: `${getPriorityColor(item.priority)}20`,
-          paddingHorizontal: 10,
-          paddingVertical: 4,
-          borderRadius: 6,
-        }}>
-          <Text style={{ 
-            color: getPriorityColor(item.priority), 
-            fontSize: 12, 
-            fontWeight: '600',
-            textTransform: 'uppercase'
-          }}>
-            {item.priority || 'N/A'}
-          </Text>
-        </View>
-      </View>
-
-      <View style={{ marginBottom: 12 }}>
-        {item.debtorName && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-            <User color="#64748b" size={16} />
-            <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '500', marginLeft: 6 }}>
-              {item.debtorName}
+  const CaseCard = ({ item }) => {
+    const statusColor = item.status?.color || '#64748b';
+    
+    return (
+      <TouchableOpacity
+        onPress={() => handleCasePress(item.id)}
+        style={{
+          backgroundColor: '#1e293b',
+          borderRadius: 12,
+          padding: 16,
+          marginBottom: 12,
+          borderWidth: 1,
+          borderColor: '#334155',
+        }}
+      >
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Briefcase color="#3b82f6" size={18} />
+            <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600', marginLeft: 8 }}>
+              Case #{item.id}
             </Text>
           </View>
-        )}
-        
-        {item.accountNumber && (
-          <Text style={{ color: '#64748b', fontSize: 12, marginLeft: 22 }}>
-            Account: {item.accountNumber}
-          </Text>
-        )}
-        
-        {item.debtorPhone && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-            <Phone color="#64748b" size={14} />
-            <Text style={{ color: '#64748b', fontSize: 12, marginLeft: 6 }}>
-              {item.debtorPhone}
-            </Text>
-          </View>
-        )}
-      </View>
-
-      <View style={{ gap: 8, marginBottom: 12 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <DollarSign color="#64748b" size={16} />
-          <Text style={{ color: '#64748b', fontSize: 13, marginLeft: 6 }}>
-            Balance: 
-          </Text>
-          <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '500', marginLeft: 4 }}>
-            {formatCurrency(item.currentBalance || item.totalAmountDue)}
-          </Text>
-        </View>
-
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <AlertCircle color="#64748b" size={16} />
-          <Text style={{ color: '#64748b', fontSize: 13, marginLeft: 6 }}>
-            Days Overdue: 
-          </Text>
-          <Text style={{ color: '#ef4444', fontSize: 13, fontWeight: '600', marginLeft: 4 }}>
-            {item.daysPastDue || item.daysOverdue || '0'}
-          </Text>
-        </View>
-
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <Calendar color="#64748b" size={16} />
-          <Text style={{ color: '#64748b', fontSize: 13, marginLeft: 6 }}>
-            Last Payment: 
-          </Text>
-          <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '500', marginLeft: 4 }}>
-            {formatDate(item.lastPaymentDate)}
-          </Text>
-        </View>
-      </View>
-
-      <View style={{ 
-        paddingTop: 12, 
-        borderTopWidth: 1, 
-        borderTopColor: '#334155',
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center'
-      }}>
-        {item.collectionStage && (
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: '#64748b', fontSize: 12 }}>
-              Stage: <Text style={{ color: '#3b82f6', fontWeight: '500' }}>
-                {item.collectionStage.replace(/_/g, ' ').toUpperCase()}
-              </Text>
-            </Text>
-          </View>
-        )}
-        
-        {item.status?.description && (
+          
           <View style={{
-            backgroundColor: item.status.color ? `${item.status.color}20` : '#64748b20',
-            paddingHorizontal: 8,
-            paddingVertical: 3,
+            backgroundColor: `${getPriorityColor(item.priority)}20`,
+            paddingHorizontal: 10,
+            paddingVertical: 4,
             borderRadius: 6,
           }}>
             <Text style={{ 
-              color: item.status.color || '#64748b', 
-              fontSize: 11, 
-              fontWeight: '600' 
+              color: getPriorityColor(item.priority), 
+              fontSize: 12, 
+              fontWeight: '600',
+              textTransform: 'uppercase'
             }}>
-              {item.status.description}
+              {item.priority || 'N/A'}
             </Text>
           </View>
-        )}
-      </View>
-    </TouchableOpacity>
-  );
+        </View>
+
+        <View style={{ marginBottom: 12 }}>
+          {item.debtorName && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+              <User color="#64748b" size={16} />
+              <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '500', marginLeft: 6 }}>
+                {item.debtorName}
+              </Text>
+            </View>
+          )}
+          
+          {item.accountNumber && (
+            <Text style={{ color: '#64748b', fontSize: 12, marginLeft: 22 }}>
+              Account: {item.accountNumber}
+            </Text>
+          )}
+          
+          {item.debtorPhone && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+              <Phone color="#64748b" size={14} />
+              <Text style={{ color: '#64748b', fontSize: 12, marginLeft: 6 }}>
+                {item.debtorPhone}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        <View style={{ gap: 8, marginBottom: 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <DollarSign color="#64748b" size={16} />
+            <Text style={{ color: '#64748b', fontSize: 13, marginLeft: 6 }}>
+              Balance: 
+            </Text>
+            <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '500', marginLeft: 4 }}>
+              {formatCurrency(item.currentBalance || item.totalAmountDue)}
+            </Text>
+          </View>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <AlertCircle color="#64748b" size={16} />
+            <Text style={{ color: '#64748b', fontSize: 13, marginLeft: 6 }}>
+              Days Overdue: 
+            </Text>
+            <Text style={{ color: '#ef4444', fontSize: 13, fontWeight: '600', marginLeft: 4 }}>
+              {item.daysPastDue || item.daysOverdue || '0'}
+            </Text>
+          </View>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Calendar color="#64748b" size={16} />
+            <Text style={{ color: '#64748b', fontSize: 13, marginLeft: 6 }}>
+              Last Payment: 
+            </Text>
+            <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '500', marginLeft: 4 }}>
+              {formatDate(item.lastPaymentDate)}
+            </Text>
+          </View>
+        </View>
+
+        <View style={{ 
+          paddingTop: 12, 
+          borderTopWidth: 1, 
+          borderTopColor: '#334155',
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          {item.collectionStage && (
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: '#64748b', fontSize: 12 }}>
+                Stage: <Text style={{ color: '#3b82f6', fontWeight: '500' }}>
+                  {item.collectionStage.replace(/_/g, ' ').toUpperCase()}
+                </Text>
+              </Text>
+            </View>
+          )}
+          
+          {item.status?.description && (
+            <View style={{
+              backgroundColor: `${statusColor}20`,
+              paddingHorizontal: 8,
+              paddingVertical: 3,
+              borderRadius: 6,
+            }}>
+              <Text style={{ 
+                color: statusColor, 
+                fontSize: 11, 
+                fontWeight: '600' 
+              }}>
+                {item.status.description}
+              </Text>
+            </View>
+          )}
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   const renderFooter = () => {
     if (!loadingMore) return null;
@@ -402,6 +423,13 @@ export default function Cases() {
           ListEmptyComponent={renderEmpty}
         />
       )}
+
+      <CaseDetailsModal
+        visible={modalVisible}
+        caseId={selectedCaseId}
+        onClose={handleModalClose}
+        onUpdate={handleCaseUpdate}
+      />
     </View>
   );
 }

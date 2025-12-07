@@ -7,6 +7,8 @@ export function AuthProvider({ children }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [userRole, setUserRole] = useState(null);
+  const [permissions, setPermissions] = useState([]);
 
   useEffect(() => {
     checkAuth();
@@ -14,108 +16,123 @@ export function AuthProvider({ children }) {
 
   const checkAuth = async () => {
     try {
-      console.log("=== AuthContext: Checking authentication ===");
-      
       const token = await authService.getToken();
       const userData = await authService.getUser();
-      
-      console.log("Token exists:", !!token);
-      console.log("User data:", userData);
       
       if (token && userData) {
         setIsAuthenticated(true);
         setUser(userData);
-        console.log("✅ User authenticated:", userData.username || userData.name);
+        
+        // Extract role
+        const role = userData.role?.name || userData.roleName || 'User';
+        setUserRole(role);
+        
+        // Extract permissions
+        const userPermissions = userData.permissions || [];
+        setPermissions(userPermissions);
       } else {
-        setIsAuthenticated(false);
-        setUser(null);
-        console.log("❌ Not authenticated");
+        resetAuthState();
       }
     } catch (error) {
       console.error('Auth check error:', error);
-      setIsAuthenticated(false);
-      setUser(null);
+      resetAuthState();
     } finally {
       setIsLoading(false);
-      console.log("=== Auth check complete ===");
     }
+  };
+
+  const resetAuthState = () => {
+    setIsAuthenticated(false);
+    setUser(null);
+    setUserRole(null);
+    setPermissions([]);
   };
 
   const login = async (username, password) => {
     try {
-      console.log("=== AuthContext: Login attempt ===");
-      console.log("Username:", username);
-      
       const { token, user: userData } = await authService.login(username, password);
       
-      console.log("Login successful");
-      console.log("Token received:", !!token);
-      console.log("User data received:", userData);
-      
-      // Make sure user data is set properly
       if (userData) {
         setIsAuthenticated(true);
         setUser(userData);
-        console.log("✅ User set in context:", userData);
+        
+        const role = userData.role?.name || userData.roleName || 'User';
+        setUserRole(role);
+        
+        const userPermissions = userData.permissions || [];
+        setPermissions(userPermissions);
       } else {
-        console.warn("⚠️ Warning: No user data received from login");
-        // Even if no user data, we can still authenticate with token
         setIsAuthenticated(true);
-        setUser({ username }); // Fallback user object
+        setUser({ username });
+        setUserRole('User');
+        setPermissions([]);
       }
       
       return { token, user: userData };
     } catch (error) {
-      console.error("❌ Login failed:", error);
-      setIsAuthenticated(false);
-      setUser(null);
+      resetAuthState();
       throw error;
     }
   };
 
   const logout = async () => {
     try {
-      console.log("=== AuthContext: Logging out ===");
       await authService.logout();
-      console.log("✅ Logout successful");
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
-      setIsAuthenticated(false);
-      setUser(null);
-      console.log("User cleared from context");
+      resetAuthState();
     }
   };
 
-  // Add a function to refresh user data
   const refreshUser = async () => {
     try {
       const userData = await authService.getUser();
       if (userData) {
         setUser(userData);
-        console.log("User data refreshed:", userData);
+        setUserRole(userData.role?.name || userData.roleName || 'User');
+        setPermissions(userData.permissions || []);
       }
     } catch (error) {
       console.error("Error refreshing user:", error);
     }
   };
 
+  // Permission helpers
+  const hasPermission = (permissionSlug) => {
+    return permissions.includes(permissionSlug);
+  };
+
+  const hasAllPermissions = (permissionSlugs) => {
+    return permissionSlugs.every(slug => permissions.includes(slug));
+  };
+
+  // Specific permission checks based on API guide
+  const canViewCases = () => hasPermission('view_hard_collection');
+  
+  const canEditCases = () => hasAllPermissions(['edit_hard_collection', 'manage_hard_collection']);
+  
+  const canUploadDocuments = () => hasPermission('view_hard_collection');
+  
+  const canViewPayments = () => hasPermission('view_payment');
+
   const value = {
     isAuthenticated,
     user,
     isLoading,
+    userRole,
+    permissions,
     checkAuth,
     login,
     logout,
     refreshUser,
+    hasPermission,
+    hasAllPermissions,
+    canViewCases,
+    canEditCases,
+    canUploadDocuments,
+    canViewPayments,
   };
-
-  console.log("AuthContext current state:", {
-    isAuthenticated,
-    hasUser: !!user,
-    userId: user?.id,
-    isLoading,
-  });
 
   return (
     <AuthContext.Provider value={value}>
