@@ -9,7 +9,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Search, Briefcase, Calendar, DollarSign, AlertCircle, User, Phone } from 'lucide-react-native';
 import { authService } from '../../lib/auth';
 import { useAuth } from '../../lib/authContext';
-import CaseDetailsModal from '../../components/CaseDetailsModal';
+import CaseDetailsModal from '../../components/cases/CaseDetailsModal';
 
 export default function Cases() {
   const insets = useSafeAreaInsets();
