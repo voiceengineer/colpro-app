@@ -13,19 +13,16 @@ import CaseUpdateForm from './CaseUpdateForm';
 const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
   const { canEditCases, canUploadDocuments, canViewPayments } = useAuth();
   
-  // Loading states
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [loadingDocuments, setLoadingDocuments] = useState(false);
   
-  // Data states
   const [caseData, setCaseData] = useState(null);
   const [payments, setPayments] = useState([]);
   const [statuses, setStatuses] = useState([]);
   const [documents, setDocuments] = useState([]);
   
-  // UI states
   const [selectedStatusId, setSelectedStatusId] = useState(null);
   const [remarks, setRemarks] = useState('');
   const [showStatusPicker, setShowStatusPicker] = useState(false);
@@ -44,6 +41,7 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
   }, [visible, caseId]);
 
   const resetState = () => {
+    setLoading(true);
     setCaseData(null);
     setPayments([]);
     setStatuses([]);
@@ -58,7 +56,6 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
   };
 
   const fetchAllData = async () => {
-    setLoading(true);
     try {
       const [caseResponse, statusesResponse] = await Promise.all([
         authService.getCaseById(caseId),
@@ -69,32 +66,25 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
       setStatuses(statusesResponse || []);
       setSelectedStatusId(caseResponse.status?.id || caseResponse.statusId);
       setRemarks(caseResponse.notes || caseResponse.remarks || '');
+      setLoading(false);
 
-      // Fetch documents and payments in parallel
-      await Promise.all([
-        fetchDocuments(),
-        caseResponse.accountId && canViewPayments() 
-          ? fetchPaymentHistory(caseResponse.accountId)
-          : Promise.resolve()
-      ]);
+      fetchDocuments();
+      if (caseResponse.accountId && canViewPayments()) {
+        fetchPaymentHistory(caseResponse.accountId);
+      }
       
     } catch (error) {
       handleError(error);
       onClose();
-    } finally {
-      setLoading(false);
     }
   };
 
   const fetchDocuments = async () => {
     setLoadingDocuments(true);
     try {
-      console.log('🔍 Fetching documents for case:', caseId);
       const docs = await authService.getCaseDocuments(caseId);
-      console.log('✅ Documents fetched:', docs.length);
       setDocuments(docs || []);
     } catch (error) {
-      console.error('❌ Error fetching documents:', error);
       setDocuments([]);
     } finally {
       setLoadingDocuments(false);
@@ -213,21 +203,15 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
       const fileType = uriParts[uriParts.length - 1].toLowerCase();
       const fileName = `case_${caseId}_${Date.now()}.${fileType}`;
       const mimeType = `image/${fileType === 'jpg' ? 'jpeg' : fileType}`;
-
-      console.log('📤 Starting upload:', { fileName, mimeType });
       
       await authService.uploadFile(caseId, asset.uri, fileName, mimeType);
       
       Alert.alert('Success', 'Document uploaded successfully');
       
-      // Refresh documents
       await fetchDocuments();
-      
-      // Auto-expand documents section
       setShowDocuments(true);
       
     } catch (error) {
-      console.error('❌ Upload error:', error);
       handleError(error);
     } finally {
       setUploading(false);
@@ -282,7 +266,6 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
     <>
       <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.95)' }}>
-          {/* Header */}
           <View style={{ 
             backgroundColor: '#1e293b',
             paddingTop: 50,
@@ -329,10 +312,8 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
             >
               {caseData && (
                 <>
-                  {/* Case Information */}
                   <CaseInfoSection caseData={caseData} />
 
-                  {/* Upload Button */}
                   <TouchableOpacity
                     onPress={handleUploadImage}
                     disabled={uploading || !canUploadDocuments()}
@@ -371,7 +352,6 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
                     )}
                   </TouchableOpacity>
 
-                  {/* Documents Section */}
                   <DocumentsSection
                     documents={documents}
                     loading={loadingDocuments}
@@ -380,7 +360,6 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
                     onDocumentPress={handleViewDocument}
                   />
 
-                  {/* Payment History */}
                   {canViewPayments() && (
                     <PaymentHistorySection
                       payments={payments}
@@ -389,7 +368,6 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
                     />
                   )}
 
-                  {/* Update Form */}
                   <CaseUpdateForm
                     statuses={statuses}
                     selectedStatusId={selectedStatusId}

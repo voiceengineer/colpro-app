@@ -43,7 +43,7 @@ const DocumentsSection = ({
   return (
     <>
       {/* Toggle Button */}
-      <TouchableOpacity
+      {/* <TouchableOpacity
         onPress={onToggle}
         style={{
           backgroundColor: '#1e293b',
@@ -85,10 +85,10 @@ const DocumentsSection = ({
           size={20}
           style={{ transform: [{ rotate: expanded ? '180deg' : '0deg' }] }}
         />
-      </TouchableOpacity>
+      </TouchableOpacity> */}
 
       {/* Documents Grid */}
-      {expanded && (
+      {/* {expanded && (
         <View style={{ marginBottom: 10 }}>
           {loading ? (
             <View style={{
@@ -197,7 +197,7 @@ const DocumentsSection = ({
             </View>
           )}
         </View>
-      )}
+      )} */}
     </>
   );
 };

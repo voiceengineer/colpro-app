@@ -121,7 +121,6 @@ export const authService = {
       if (params.collectionStage) queryParams.append('collectionStage', params.collectionStage);
       if (params.sortBy) queryParams.append('sortBy', params.sortBy);
       if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
-      if (params.agentId) queryParams.append('agentId', params.agentId);
 
       const queryString = queryParams.toString();
       const url = `${API_URL}/cases${queryString ? '?' + queryString : ''}`;
@@ -219,49 +218,33 @@ export const authService = {
     }
   },
 
-  // ✅ FIXED: Upload endpoint according to API guide
   async uploadFile(caseId, fileUri, fileName, mimeType) {
     try {
       const token = await this.getToken();
       if (!token) throw new Error("UNAUTHORIZED");
 
-      console.log('📤 [Upload] Starting upload:', {
-        endpoint: `${API_URL}/files/upload`,
-        caseId,
-        fileName,
-        mimeType
-      });
-
       return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         
         let uploadTimeout = setTimeout(() => {
-          console.log('⏱️ Upload timeout (60s)');
           xhr.abort();
           reject(new Error("TIMEOUT"));
         }, 60000);
 
-        // Track upload progress
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable) {
             const progress = Math.round((e.loaded / e.total) * 100);
-            console.log(`📊 Upload progress: ${progress}%`);
           }
         };
 
         xhr.onload = () => {
           clearTimeout(uploadTimeout);
-          
-          console.log('📥 Upload status:', xhr.status);
-          console.log('📥 Upload response:', xhr.responseText);
 
           if (xhr.status >= 200 && xhr.status < 300) {
             try {
               const response = JSON.parse(xhr.responseText);
-              console.log('✅ Upload successful:', response);
               resolve(response);
             } catch (e) {
-              console.log('✅ Upload successful (non-JSON)');
               resolve({ success: true, message: 'Upload successful' });
             }
           } else if (xhr.status === 401) {
@@ -281,13 +264,11 @@ export const authService = {
 
         xhr.onerror = () => {
           clearTimeout(uploadTimeout);
-          console.error('❌ Network error');
           reject(new Error("NETWORK_ERROR"));
         };
 
         const formData = new FormData();
         
-        // According to API guide section 5.1
         formData.append('file', {
           uri: fileUri,
           name: fileName,
@@ -295,34 +276,23 @@ export const authService = {
         });
         formData.append('entityType', 'case');
         formData.append('entityId', String(caseId));
-        formData.append('documentType', 'photo'); // Can be: passport, contract, photo, receipt, other
-
-        console.log('📤 FormData prepared:', {
-          entityType: 'case',
-          entityId: caseId,
-          documentType: 'photo'
-        });
+        formData.append('documentType', 'photo');
 
         xhr.open('POST', `${API_URL}/files/upload`);
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
         xhr.send(formData);
       });
     } catch (error) {
-      console.error('❌ Upload error:', error);
       throw error;
     }
   },
 
-  // ✅ FIXED: Get documents using CORRECT endpoint from API guide section 5.2
   async getCaseDocuments(caseId) {
     try {
       const token = await this.getToken();
       if (!token) throw new Error("UNAUTHORIZED");
 
-      // According to API guide: GET /files?entityType=case&entityId={caseId}
       const url = `${API_URL}/files?entityType=case&entityId=${caseId}`;
-      
-      console.log('📥 [Documents] Fetching:', url);
 
       const response = await fetch(url, {
         method: "GET",
@@ -332,26 +302,19 @@ export const authService = {
         },
       });
 
-      console.log('📥 [Documents] Status:', response.status);
-
       if (response.status === 401) throw new Error("UNAUTHORIZED");
       if (response.status === 403) throw new Error("FORBIDDEN");
       
-      // If endpoint returns 404 or 501, return empty array
       if (response.status === 404 || response.status === 501) {
-        console.log('⚠️ Documents endpoint not found, returning empty');
         return [];
       }
       
       if (!response.ok) {
-        console.log('⚠️ Documents fetch failed, returning empty');
         return [];
       }
 
       const data = await response.json();
-      console.log('📥 [Documents] Response:', JSON.stringify(data, null, 2));
       
-      // According to API guide section 5.2, response should be an array
       let documents = [];
       
       if (Array.isArray(data)) {
@@ -362,9 +325,6 @@ export const authService = {
         documents = data.data;
       }
       
-      console.log(`✅ [Documents] Found ${documents.length} documents`);
-      
-      // Normalize according to API guide structure
       return documents.map(doc => ({
         id: doc.id,
         fileName: doc.fileName || 'document',
@@ -381,14 +341,10 @@ export const authService = {
       }));
       
     } catch (error) {
-      console.error('❌ [Documents] Error:', error);
-      
-      // Re-throw auth errors
       if (error.message === "UNAUTHORIZED" || error.message === "FORBIDDEN") {
         throw error;
       }
       
-      // Return empty array for other errors
       return [];
     }
   },
@@ -420,8 +376,7 @@ export const authService = {
   async getUserCasesCount(userId) {
     try {
       const response = await this.getCases({ 
-        agentId: userId, 
-        limit: 1000 
+        limit: 1000
       });
 
       if (Array.isArray(response)) {

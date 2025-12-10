@@ -104,16 +104,12 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
     const currentStatusId = caseData?.status?.id || caseData?.statusId;
     const currentRemarks = caseData?.notes || caseData?.remarks || '';
     
-    console.log('✏️ [UPDATE] Current status ID:', currentStatusId);
-    console.log('✏️ [UPDATE] Selected status ID:', selectedStatusId);
-    console.log('✏️ [UPDATE] Current remarks:', currentRemarks);
-    console.log('✏️ [UPDATE] New remarks:', remarks);
+   
     
     const hasStatusChange = selectedStatusId && selectedStatusId !== currentStatusId;
     const hasRemarksChange = remarks.trim() !== currentRemarks;
 
-    console.log('✏️ [UPDATE] Has status change:', hasStatusChange);
-    console.log('✏️ [UPDATE] Has remarks change:', hasRemarksChange);
+ 
 
     if (!hasStatusChange && !hasRemarksChange) {
       console.log('⚠️ [UPDATE] No changes detected');
@@ -133,8 +129,7 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
         updateData.notes = remarks.trim();
       }
 
-      console.log('✏️ [UPDATE] Update data:', updateData);
-      console.log('✏️ [UPDATE] Sending update request...');
+   
 
       const result = await authService.updateCase(caseId, updateData);
 
@@ -167,14 +162,7 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
     // Check if backend endpoint is available
     console.log('🔍 [UPLOAD BTN] Checking backend availability...');
     Alert.alert(
-      '⚠️ Backend Configuration Required',
-      'The file upload feature requires the backend endpoint:\n\n' +
-      'POST /api/files/upload\n\n' +
-      'Please ensure:\n' +
-      '✓ Backend server is running\n' +
-      '✓ File upload endpoint is configured\n' +
-      '✓ Multer middleware is installed\n\n' +
-      'Do you want to continue anyway?',
+     
       [
         { text: 'Cancel', style: 'cancel' },
         { 
@@ -273,9 +261,7 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
       const fileName = `case_${caseId}_${Date.now()}.${fileType}`;
       const mimeType = `image/${fileType === 'jpg' ? 'jpeg' : fileType}`;
 
-      console.log('📸 [UPLOAD DOC] Generated file name:', fileName);
-      console.log('📸 [UPLOAD DOC] MIME type:', mimeType);
-      console.log('📸 [UPLOAD DOC] Calling authService.uploadFile...');
+   
 
       const result = await authService.uploadFile(caseId, asset.uri, fileName, mimeType);
       
@@ -296,35 +282,7 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
     let title = 'Error';
     let message = 'An error occurred';
 
-    if (error.message === 'SERVER_UNAVAILABLE') {
-      title = '502 Backend Error';
-      message = '⚠️ Backend Server Issue\n\n' +
-                'The upload was sent (100%) but the backend server is not responding.\n\n' +
-                'Possible causes:\n' +
-                '• Backend Node.js server crashed\n' +
-                '• File size too large (check backend limits)\n' +
-                '• Backend timeout during processing\n' +
-                '• Nginx cannot reach Node.js server\n\n' +
-                'Backend Team: Check server logs and restart if needed.\n\n' +
-                'Your file: The upload might have succeeded despite this error.';
-    } else if (error.message === 'UNAUTHORIZED') {
-      message = 'Your session has expired. Please log in again.';
-    } else if (error.message === 'FORBIDDEN') {
-      message = 'You do not have permission to perform this action.';
-    } else if (error.message === 'NETWORK_ERROR') {
-      message = 'Network error. Please check your connection.';
-    } else if (error.message && error.message.includes('ENDPOINT_NOT_FOUND')) {
-      title = 'Upload Not Available';
-      message = '⚠️ Upload Feature Not Available\n\n' +
-                'The file upload endpoint is not configured on the backend server.\n\n' +
-                'Please contact your backend team to:\n' +
-                '1. Enable the POST /api/files/upload endpoint\n' +
-                '2. Configure file upload middleware\n' +
-                '3. Set up file storage\n\n' +
-                'Reference: API Documentation Section 5';
-    } else if (error.message) {
-      message = error.message;
-    }
+    
 
     console.error('🚨 [ERROR HANDLER] Display message:', message);
     Alert.alert(title, message);

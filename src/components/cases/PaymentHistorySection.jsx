@@ -28,7 +28,6 @@ const PaymentHistorySection = ({
 
   return (
     <>
-      {/* Toggle Button */}
       <TouchableOpacity
         onPress={onToggle}
         style={{
@@ -66,7 +65,6 @@ const PaymentHistorySection = ({
         />
       </TouchableOpacity>
 
-      {/* Payments List */}
       {expanded && (
         <View style={{ marginBottom: 10 }}>
           {payments.length === 0 ? (
