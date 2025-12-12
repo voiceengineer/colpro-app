@@ -62,11 +62,12 @@
         "sitemap": false
       },
       "eas": {
-        "projectId": "f3d86cf7-a0bc-47f8-ae0e-db744cd36036"
+        "projectId": "22d93417-261b-42e1-8096-46a51e86a9f6"
       }
     },
     "runtimeVersion": {
       "policy": "appVersion"
-    }
+    },
+    "owner": "voiceengineer5593"
   }
 }
