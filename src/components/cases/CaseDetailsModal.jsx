@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, Modal, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { X, Upload } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { authService } from '../../lib/auth';
+import { apiService } from '../../lib/apiService';
 import { useAuth } from '../../lib/authContext';
 import DocumentPreviewModal from './DocumentPreviewModal';
 import CaseInfoSection from './CaseInfoSection';
@@ -58,8 +58,8 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
   const fetchAllData = async () => {
     try {
       const [caseResponse, statusesResponse] = await Promise.all([
-        authService.getCaseById(caseId),
-        authService.getCaseStatuses()
+        apiService.getCaseById(caseId),
+        apiService.getCaseStatuses()
       ]);
       
       setCaseData(caseResponse);
@@ -82,7 +82,7 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
   const fetchDocuments = async () => {
     setLoadingDocuments(true);
     try {
-      const docs = await authService.getCaseDocuments(caseId);
+      const docs = await apiService.getCaseDocuments(caseId);
       setDocuments(docs || []);
     } catch (error) {
       setDocuments([]);
@@ -93,7 +93,7 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
 
   const fetchPaymentHistory = async (accountId) => {
     try {
-      const paymentData = await authService.getPaymentHistory(accountId);
+      const paymentData = await apiService.getPaymentHistory(accountId);
       setPayments(paymentData);
     } catch (error) {
       setPayments([]);
@@ -123,7 +123,7 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
       if (hasStatusChange) updateData.statusId = selectedStatusId;
       if (hasRemarksChange) updateData.notes = remarks.trim();
 
-      await authService.updateCase(caseId, updateData);
+      await apiService.updateCase(caseId, updateData);
       Alert.alert('Success', 'Case updated successfully');
       onUpdate?.();
       onClose();
@@ -204,7 +204,7 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
       const fileName = `case_${caseId}_${Date.now()}.${fileType}`;
       const mimeType = `image/${fileType === 'jpg' ? 'jpeg' : fileType}`;
       
-      await authService.uploadFile(caseId, asset.uri, fileName, mimeType);
+      await apiService.uploadFile(caseId, asset.uri, fileName, mimeType);
       
       Alert.alert('Success', 'Document uploaded successfully');
       

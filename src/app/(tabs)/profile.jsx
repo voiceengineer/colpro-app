@@ -8,7 +8,7 @@ import {
   Briefcase, RefreshCw 
 } from 'lucide-react-native';
 import { useAuth } from '../../lib/authContext';
-import { authService } from '../../lib/auth';
+import { apiService } from '../../lib/apiService';
 
 export default function Profile() {
   const insets = useSafeAreaInsets();
@@ -31,7 +31,7 @@ export default function Profile() {
   }, [user?.id]);
 
   const checkAuth = async () => {
-    const token = await authService.getToken();
+    const token = await apiService.getToken();
     if (!token) {
       Alert.alert('Session Expired', 'Please login again');
       router.replace('/login');
@@ -43,7 +43,7 @@ export default function Profile() {
       setCasesLoading(true);
       setCasesError(null);
       
-      const count = await authService.getUserCasesCount(user.id);
+      const count = await apiService.getUserCasesCount(user.id);
       setCasesCount(count);
     } catch (error) {
       if (error.message === 'UNAUTHORIZED' || error.message.includes('401')) {

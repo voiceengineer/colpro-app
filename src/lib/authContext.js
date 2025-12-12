@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { authService } from './auth';
+import { apiService } from './apiService';
+
 
 const AuthContext = createContext(null);
 
@@ -16,8 +17,8 @@ export function AuthProvider({ children }) {
 
   const checkAuth = async () => {
     try {
-      const token = await authService.getToken();
-      const userData = await authService.getUser();
+      const token = await apiService.getToken();
+      const userData = await apiService.getUser();
       
       if (token && userData) {
         setIsAuthenticated(true);
@@ -50,7 +51,7 @@ export function AuthProvider({ children }) {
 
   const login = async (username, password) => {
     try {
-      const { token, user: userData } = await authService.login(username, password);
+      const { token, user: userData } = await apiService.login(username, password);
       
       if (userData) {
         setIsAuthenticated(true);
@@ -77,7 +78,7 @@ export function AuthProvider({ children }) {
 
   const logout = async () => {
     try {
-      await authService.logout();
+      await apiService.logout();
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
@@ -87,7 +88,7 @@ export function AuthProvider({ children }) {
 
   const refreshUser = async () => {
     try {
-      const userData = await authService.getUser();
+      const userData = await apiService.getUser();
       if (userData) {
         setUser(userData);
         setUserRole(userData.role?.name || userData.roleName || 'User');

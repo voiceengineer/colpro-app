@@ -8,7 +8,7 @@ import {
   DollarSign, ChevronDown, Check, TrendingUp, AlertCircle
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { authService } from '../lib/auth';
+import { apiService } from '../lib/auth';
 import { useAuth } from '../lib/authContext';
 
 const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
@@ -51,8 +51,8 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
     try {
       console.log('🔄 [FETCH DATA] Fetching case and statuses...');
       const [caseResponse, statusesResponse] = await Promise.all([
-        authService.getCaseById(caseId),
-        authService.getCaseStatuses()
+        apiService.getCaseById(caseId),
+        apiService.getCaseStatuses()
       ]);
       
       console.log('✅ [FETCH DATA] Case data received:', caseResponse);
@@ -82,7 +82,7 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
 
   const fetchPaymentHistory = async (accountId) => {
     try {
-      const paymentData = await authService.getPaymentHistory(accountId);
+      const paymentData = await apiService.getPaymentHistory(accountId);
       setPayments(paymentData);
     } catch (error) {
       setPayments([]);
@@ -131,7 +131,7 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
 
    
 
-      const result = await authService.updateCase(caseId, updateData);
+      const result = await apiService.updateCase(caseId, updateData);
 
       console.log('✅ [UPDATE] Update successful:', result);
       Alert.alert('Success', 'Case updated successfully');
@@ -263,7 +263,7 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
 
    
 
-      const result = await authService.uploadFile(caseId, asset.uri, fileName, mimeType);
+      const result = await apiService.uploadFile(caseId, asset.uri, fileName, mimeType);
       
       console.log('✅ [UPLOAD DOC] Upload successful:', result);
       Alert.alert('Success', 'Document uploaded successfully');

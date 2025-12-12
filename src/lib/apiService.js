@@ -4,7 +4,7 @@ const API_URL = "https://dev.collpro.uz/api";
 const TOKEN_KEY = "@auth_token";
 const USER_KEY = "@user_data";
 
-export const authService = {
+export const apiService = {
   async login(username, password) {
     try {
       const response = await fetch(`${API_URL}/auth/login`, {
@@ -103,6 +103,50 @@ export const authService = {
       return false;
     } catch (error) {
       return false;
+    }
+  },
+
+  async getDebtors(params = {}) {
+    try {
+      const token = await this.getToken();
+      if (!token) throw new Error("UNAUTHORIZED");
+
+      const queryParams = new URLSearchParams();
+      if (params.search) queryParams.append('search', params.search);
+      if (params.status) queryParams.append('status', params.status);
+      queryParams.append('limit', params.limit || '50');
+
+      const url = `${API_URL}/debtors?${queryParams.toString()}`;
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.status === 401) throw new Error("UNAUTHORIZED");
+      if (!response.ok) throw new Error("Failed to fetch debtors");
+
+      return await response.json();
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  async getDebtorById(debtorId) {
+    try {
+      const token = await this.getToken();
+      if (!token) throw new Error("UNAUTHORIZED");
+
+      const url = `${API_URL}/debtors/${debtorId}`;
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.status === 401) throw new Error("UNAUTHORIZED");
+      if (response.status === 404) throw new Error("Debtor not found");
+      if (!response.ok) throw new Error("Failed to fetch debtor details");
+
+      return await response.json();
+    } catch (error) {
+      throw error;
     }
   },
 
