@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Modal, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
-import { X, Upload } from 'lucide-react-native';
+import { X, Camera } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { apiService } from '../../lib/apiService';
 import { useAuth } from '../../lib/authContext';
@@ -134,28 +134,16 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
     }
   };
 
-  const handleUploadImage = () => {
+  const handleTakePhoto = async () => {
     if (!canUploadDocuments()) {
-      Alert.alert('Permission Required', 'You do not have permission to upload documents.');
+      Alert.alert('Permission Required', 'You do not have permission to take photos.');
       return;
     }
     
-    Alert.alert(
-      'Upload Document',
-      'Choose source',
-      [
-        { text: 'Camera', onPress: pickFromCamera },
-        { text: 'Gallery', onPress: pickFromGallery },
-        { text: 'Cancel', style: 'cancel' }
-      ]
-    );
-  };
-
-  const pickFromCamera = async () => {
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Camera permission is needed');
+        Alert.alert('Permission Required', 'Camera permission is needed to take photos');
         return;
       }
 
@@ -173,28 +161,6 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
     }
   };
 
-  const pickFromGallery = async () => {
-    try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Gallery permission is needed');
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: false,
-        quality: 0.7,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        uploadDocument(result.assets[0]);
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to open gallery');
-    }
-  };
-
   const uploadDocument = async (asset) => {
     setUploading(true);
     
@@ -206,7 +172,7 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
       
       await apiService.uploadFile(caseId, asset.uri, fileName, mimeType);
       
-      Alert.alert('Success', 'Document uploaded successfully');
+      Alert.alert('Success', 'Photo uploaded successfully');
       
       await fetchDocuments();
       setShowDocuments(true);
@@ -315,7 +281,7 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
                   <CaseInfoSection caseData={caseData} />
 
                   <TouchableOpacity
-                    onPress={handleUploadImage}
+                    onPress={handleTakePhoto}
                     disabled={uploading || !canUploadDocuments()}
                     style={{
                       backgroundColor: '#1e293b',
@@ -339,14 +305,14 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
                       </>
                     ) : (
                       <>
-                        <Upload color={canUploadDocuments() ? "#3b82f6" : "#fbbf24"} size={20} />
+                        <Camera color={canUploadDocuments() ? "#3b82f6" : "#fbbf24"} size={20} />
                         <Text style={{ 
                           color: canUploadDocuments() ? '#3b82f6' : '#fbbf24', 
                           fontSize: 15, 
                           fontWeight: '600',
                           marginLeft: 10
                         }}>
-                          {canUploadDocuments() ? 'Upload Document' : 'Upload Restricted'}
+                          {canUploadDocuments() ? 'Take Photo' : 'Camera Restricted'}
                         </Text>
                       </>
                     )}
