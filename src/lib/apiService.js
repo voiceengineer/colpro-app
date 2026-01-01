@@ -1,8 +1,8 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from 'expo-secure-store';
 
 const API_URL = "https://dev.collpro.uz/api";
-const TOKEN_KEY = "@auth_token";
-const USER_KEY = "@user_data";
+const TOKEN_KEY = "auth_token";
+const USER_KEY = "user_data";
 
 export const apiService = {
   async login(username, password) {
@@ -26,9 +26,9 @@ export const apiService = {
         throw new Error("Token missing in response");
       }
 
-      await AsyncStorage.setItem(TOKEN_KEY, token);
+      await SecureStore.setItemAsync(TOKEN_KEY, token);
       if (user) {
-        await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
+        await SecureStore.setItemAsync(USER_KEY, JSON.stringify(user));
       }
 
       return { token, user };
@@ -52,13 +52,14 @@ export const apiService = {
     } catch (e) {
       // Continue with local cleanup
     } finally {
-      await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY]);
+      await SecureStore.deleteItemAsync(TOKEN_KEY);
+      await SecureStore.deleteItemAsync(USER_KEY);
     }
   },
 
   async getToken() {
     try {
-      return await AsyncStorage.getItem(TOKEN_KEY);
+      return await SecureStore.getItemAsync(TOKEN_KEY);
     } catch (error) {
       return null;
     }
@@ -66,7 +67,7 @@ export const apiService = {
 
   async getUser() {
     try {
-      const data = await AsyncStorage.getItem(USER_KEY);
+      const data = await SecureStore.getItemAsync(USER_KEY);
       return data ? JSON.parse(data) : null;
     } catch (error) {
       return null;

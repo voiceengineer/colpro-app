@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { apiService } from './apiService';
-
+import { biometricService } from './biometricService';
 
 const AuthContext = createContext(null);
 
@@ -10,10 +10,33 @@ export function AuthProvider({ children }) {
   const [isLoading, setIsLoading] = useState(true);
   const [userRole, setUserRole] = useState(null);
   const [permissions, setPermissions] = useState([]);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [biometricType, setBiometricType] = useState('Biometric');
 
   useEffect(() => {
-    checkAuth();
+    initialize();
   }, []);
+
+  const initialize = async () => {
+    try {
+      setIsLoading(true);
+      
+      const authResult = await checkAuth();
+      
+      const bioAvailable = await biometricService.isAvailable();
+      const bioEnabled = await biometricService.isBiometricEnabled();
+      const bioType = await biometricService.getBiometricType();
+      
+      setBiometricAvailable(bioAvailable);
+      setBiometricEnabled(bioEnabled);
+      setBiometricType(bioType);
+    } catch (error) {
+      console.error('Initialization error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const checkAuth = async () => {
     try {
@@ -24,21 +47,21 @@ export function AuthProvider({ children }) {
         setIsAuthenticated(true);
         setUser(userData);
         
-        // Extract role
         const role = userData.role?.name || userData.roleName || 'User';
         setUserRole(role);
         
-        // Extract permissions
         const userPermissions = userData.permissions || [];
         setPermissions(userPermissions);
+        
+        return true;
       } else {
         resetAuthState();
+        return false;
       }
     } catch (error) {
       console.error('Auth check error:', error);
       resetAuthState();
-    } finally {
-      setIsLoading(false);
+      return false;
     }
   };
 
@@ -71,14 +94,91 @@ export function AuthProvider({ children }) {
       
       return { token, user: userData };
     } catch (error) {
+      console.error('Login error:', error);
       resetAuthState();
       throw error;
     }
   };
 
+  const loginWithBiometric = async () => {
+    try {
+      const token = await apiService.getToken();
+      
+      if (!token) {
+        throw new Error('No saved session found. Please login with username and password first.');
+      }
+
+      const authenticated = await biometricService.authenticate();
+      
+      if (!authenticated) {
+        throw new Error('Biometric authentication was cancelled or failed');
+      }
+
+      const userData = await apiService.getUser();
+      
+      if (userData) {
+        setIsAuthenticated(true);
+        setUser(userData);
+        setUserRole(userData.role?.name || userData.roleName || 'User');
+        setPermissions(userData.permissions || []);
+        
+        return { success: true };
+      }
+
+      throw new Error('Session expired. Please login again.');
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  const enableBiometricLogin = async () => {
+    try {
+      const canAuthenticate = await biometricService.authenticate();
+      if (!canAuthenticate) {
+        return false;
+      }
+      
+      const success = await biometricService.enableBiometric();
+      if (success) {
+        setBiometricEnabled(true);
+      }
+      return success;
+    } catch (error) {
+      console.error('Enable biometric error:', error);
+      return false;
+    }
+  };
+
+  const disableBiometricLogin = async () => {
+    try {
+      const success = await biometricService.disableBiometric();
+      if (success) {
+        setBiometricEnabled(false);
+      }
+      return success;
+    } catch (error) {
+      console.error('Disable biometric error:', error);
+      return false;
+    }
+  };
+
   const logout = async () => {
     try {
-      await apiService.logout();
+      const token = await apiService.getToken();
+      if (token) {
+        try {
+          await fetch('https://dev.collpro.uz/api/auth/logout', {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          });
+        } catch (e) {
+          console.log('Logout API call failed');
+        }
+      }
+      
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
@@ -99,7 +199,6 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Permission helpers
   const hasPermission = (permissionSlug) => {
     return permissions.includes(permissionSlug);
   };
@@ -108,13 +207,9 @@ export function AuthProvider({ children }) {
     return permissionSlugs.every(slug => permissions.includes(slug));
   };
 
-  // Specific permission checks based on API guide
   const canViewCases = () => hasPermission('view_hard_collection');
-  
   const canEditCases = () => hasAllPermissions(['edit_hard_collection', 'manage_hard_collection']);
-  
   const canUploadDocuments = () => hasPermission('view_hard_collection');
-  
   const canViewPayments = () => hasPermission('view_payment');
 
   const value = {
@@ -123,8 +218,14 @@ export function AuthProvider({ children }) {
     isLoading,
     userRole,
     permissions,
+    biometricAvailable,
+    biometricEnabled,
+    biometricType,
     checkAuth,
     login,
+    loginWithBiometric,
+    enableBiometricLogin,
+    disableBiometricLogin,
     logout,
     refreshUser,
     hasPermission,
