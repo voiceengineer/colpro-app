@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   View, Text, TextInput, TouchableOpacity, 
   KeyboardAvoidingView, Platform, Keyboard, 
-  ActivityIndicator, StyleSheet, Animated
+  ActivityIndicator, StyleSheet, Animated, Alert
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -34,7 +34,6 @@ export default function Login() {
   const [showBiometricPrompt, setShowBiometricPrompt] = useState(false);
   const [fadeAnim] = useState(new Animated.Value(0));
   const [keyboardVisible, setKeyboardVisible] = useState(false);
-  const [availableBiometrics, setAvailableBiometrics] = useState([]);
 
   useEffect(() => {
     Animated.timing(fadeAnim, {
@@ -52,23 +51,11 @@ export default function Login() {
       () => setKeyboardVisible(false)
     );
 
-    checkAvailableBiometrics();
-
     return () => {
       keyboardDidShowListener.remove();
       keyboardDidHideListener.remove();
     };
   }, []);
-
-  const checkAvailableBiometrics = async () => {
-    try {
-      const { biometricService } = require('../lib/biometricService');
-      const types = await biometricService.getAllAvailableTypes();
-      setAvailableBiometrics(types);
-    } catch (error) {
-      console.error('Error checking biometrics:', error);
-    }
-  };
 
   const showToast = (message, type = 'error') => {
     setToast({ show: true, message, type });
@@ -79,10 +66,10 @@ export default function Login() {
     setLoading(true);
     try {
       await loginWithBiometric();
-      showToast('Login successful! Redirecting...', 'success');
+      showToast('Login successful', 'success');
       setTimeout(() => router.replace('/(tabs)/reports'), 1000);
     } catch (error) {
-      showToast(error?.message || 'Biometric authentication failed');
+      showToast(error?.message || 'Authentication failed');
     } finally {
       setLoading(false);
     }
@@ -101,44 +88,55 @@ export default function Login() {
     setLoading(true);
     try {
       await login(username, password);
-      showToast('Login successful!', 'success');
       
-      if (biometricAvailable && !biometricEnabled) {
-        setTimeout(() => setShowBiometricPrompt(true), 800);
+      const shouldShowBiometricPrompt = biometricAvailable === true && biometricEnabled === false;
+      
+      if (shouldShowBiometricPrompt) {
+        setLoading(false);
+        Alert.alert(
+          `Enable ${biometricType}?`,
+          `Login faster and securely with ${biometricType}`,
+          [
+            {
+              text: 'Skip',
+              onPress: () => {
+                showToast('Login successful', 'success');
+                setTimeout(() => router.replace('/(tabs)/reports'), 500);
+              },
+              style: 'cancel'
+            },
+            {
+              text: `Enable ${biometricType}`,
+              onPress: async () => {
+                try {
+                  const success = await enableBiometricLogin();
+                  if (success) {
+                    showToast(`${biometricType} enabled successfully`, 'success');
+                  } else {
+                    showToast('Failed to enable biometric', 'error');
+                  }
+                } catch (error) {
+                  showToast('Error enabling biometric', 'error');
+                }
+                setTimeout(() => router.replace('/(tabs)/reports'), 1000);
+              }
+            }
+          ],
+          { cancelable: false }
+        );
       } else {
+        showToast('Login successful', 'success');
+        setLoading(false);
         setTimeout(() => router.replace('/(tabs)/reports'), 1000);
       }
     } catch (error) {
-      showToast(error?.message || 'Login failed. Please try again.');
-    } finally {
+      showToast(error?.message || 'Login failed');
       setLoading(false);
     }
   };
 
-  const handleEnableBiometric = async () => {
-    setShowBiometricPrompt(false);
-    
-    try {
-      const success = await enableBiometricLogin();
-      if (success) {
-        showToast(`${biometricType} enabled successfully!`, 'success');
-      } else {
-        showToast(`Failed to enable ${biometricType}`, 'error');
-      }
-    } catch (error) {
-      showToast('Error enabling biometric', 'error');
-    }
-    
-    setTimeout(() => router.replace('/(tabs)/reports'), 1000);
-  };
-
-  const handleSkipBiometric = () => {
-    setShowBiometricPrompt(false);
-    setTimeout(() => router.replace('/(tabs)/reports'), 500);
-  };
-
   const isSuccess = toast.type === 'success';
-  const showBiometricButton = biometricAvailable && biometricEnabled;
+  const showBiometricButton = biometricAvailable === true && biometricEnabled === true;
   const isFaceID = biometricType === 'Face ID';
 
   return (
@@ -202,45 +200,23 @@ export default function Login() {
 
           {showBiometricButton && !keyboardVisible && (
             <>
-              {availableBiometrics.length > 1 ? (
-                <View style={styles.biometricOptionsContainer}>
-                  {availableBiometrics.map((bio, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      onPress={handleBiometricLogin}
-                      disabled={loading}
-                      style={[styles.biometricOptionButton, loading && styles.buttonDisabled]}
-                      accessibilityLabel={`Login with ${bio.type}`}
-                      accessibilityRole="button"
-                    >
-                      {bio.type === 'Face ID' ? (
-                        <ScanFace color="#ffffff" size={22} strokeWidth={2.5} />
-                      ) : (
-                        <Fingerprint color="#ffffff" size={22} strokeWidth={2.5} />
-                      )}
-                      <Text style={styles.biometricOptionText}>{bio.type}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              ) : (
-                <TouchableOpacity
-                  onPress={handleBiometricLogin}
-                  disabled={loading}
-                  style={[styles.biometricButton, loading && styles.buttonDisabled]}
-                  accessibilityLabel={`Login with ${biometricType}`}
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: loading }}
-                >
-                  {isFaceID ? (
-                    <ScanFace color="#ffffff" size={24} strokeWidth={2.5} />
-                  ) : (
-                    <Fingerprint color="#ffffff" size={24} strokeWidth={2.5} />
-                  )}
-                  <Text style={styles.biometricButtonText}>
-                    {biometricType}
-                  </Text>
-                </TouchableOpacity>
-              )}
+              <TouchableOpacity
+                onPress={handleBiometricLogin}
+                disabled={loading}
+                style={[styles.biometricButton, loading && styles.buttonDisabled]}
+                accessibilityLabel="Login with biometric"
+                accessibilityRole="button"
+                accessibilityState={{ disabled: loading }}
+              >
+                {isFaceID ? (
+                  <ScanFace color="#ffffff" size={24} strokeWidth={2.5} />
+                ) : (
+                  <Fingerprint color="#ffffff" size={24} strokeWidth={2.5} />
+                )}
+                <Text style={styles.biometricButtonText}>
+                  Biometric Login
+                </Text>
+              </TouchableOpacity>
 
               <View style={styles.divider}>
                 <View style={styles.dividerLine} />
@@ -301,7 +277,7 @@ export default function Login() {
             </View>
 
             <TouchableOpacity 
-              onPress={() => showToast('Please contact the administrator to reset your password')}
+              onPress={() => showToast('Contact administrator to reset password')}
               style={styles.forgotPassword}
               disabled={loading}
               accessibilityLabel="Forgot password"
@@ -338,13 +314,6 @@ export default function Login() {
           )}
         </Animated.View>
       </KeyboardAvoidingView>
-
-      <BiometricEnrollmentModal
-        visible={showBiometricPrompt}
-        biometricType={biometricType}
-        onEnable={handleEnableBiometric}
-        onSkip={handleSkipBiometric}
-      />
     </View>
   );
 }
@@ -449,31 +418,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     marginLeft: 10,
-  },
-  biometricOptionsContainer: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 20,
-  },
-  biometricOptionButton: {
-    flex: 1,
-    backgroundColor: '#9333ea',
-    borderRadius: 14,
-    paddingVertical: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#9333ea',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  biometricOptionText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: 'bold',
-    marginLeft: 8,
   },
   divider: {
     flexDirection: 'row',
