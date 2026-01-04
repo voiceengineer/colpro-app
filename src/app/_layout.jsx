@@ -27,17 +27,16 @@ function RootNavigator() {
   useEffect(() => {
     if (isLoading) return;
     
-    // Don't interfere with index screen navigation
-    if (segments[0] === undefined || segments[0] === 'index') return;
+    // Don't interfere with index, login, or register screens
+    if (segments[0] === undefined || segments[0] === 'index' || segments[0] === 'login' || segments[0] === 'register') {
+      return;
+    }
 
     const inTabsGroup = segments[0] === "(tabs)";
 
     if (!isAuthenticated && inTabsGroup) {
       // User not authenticated but trying to access tabs
       router.replace("/login");
-    } else if (isAuthenticated && segments[0] === 'login') {
-      // User authenticated but on login page
-      router.replace("/(tabs)/index");
     }
   }, [isLoading, isAuthenticated, segments]);
 
@@ -65,6 +64,7 @@ function RootNavigator() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="login" />
+      <Stack.Screen name="register" />
       <Stack.Screen name="(tabs)" />
     </Stack>
   );

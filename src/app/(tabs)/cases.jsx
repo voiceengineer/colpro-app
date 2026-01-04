@@ -6,8 +6,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Search, Briefcase, Calendar, DollarSign, AlertCircle, User, Phone } from 'lucide-react-native';
+import { Search, Briefcase, Calendar, DollarSign, AlertCircle, User, Phone, Copy } from 'lucide-react-native';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import * as Clipboard from 'expo-clipboard';
 import { casesService } from '../../lib/services/casesService';
 import { useAuth } from '../../lib/authContext';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -38,6 +39,28 @@ const CaseCard = React.memo(({ item, handleCasePress }) => {
     if (!amount && amount !== 0) return '0';
     return Number(amount).toLocaleString('en-US');
   };
+
+  const handleCopyData = async () => {
+    const caseData = `
+Case #${item.id}
+Priority: ${item.priority || 'N/A'}
+Debtor: ${item.debtorName || 'N/A'}
+Account: ${item.accountNumber || 'N/A'}
+Phone: ${item.debtorPhone || 'N/A'}
+Balance: ${formatCurrency(item.currentBalance || item.totalAmountDue)}
+Days Overdue: ${item.daysPastDue || item.daysOverdue || '0'}
+Last Payment: ${formatDate(item.lastPaymentDate)}
+Stage: ${item.collectionStage ? item.collectionStage.replace(/_/g, ' ').toUpperCase() : 'N/A'}
+Status: ${item.status?.description || 'N/A'}
+    `.trim();
+
+    try {
+      await Clipboard.setStringAsync(caseData);
+      Alert.alert('Copied', 'Case data copied to clipboard');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to copy case data');
+    }
+  };
   
   return (
     <TouchableOpacity
@@ -52,27 +75,40 @@ const CaseCard = React.memo(({ item, handleCasePress }) => {
       }}
     >
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
           <Briefcase color="#3b82f6" size={18} />
           <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600', marginLeft: 8 }}>
             Case #{item.id}
           </Text>
         </View>
-        
-        <View style={{
-          backgroundColor: `${getPriorityColor(item.priority)}20`,
-          paddingHorizontal: 10,
-          paddingVertical: 4,
-          borderRadius: 6,
-        }}>
-          <Text style={{ 
-            color: getPriorityColor(item.priority), 
-            fontSize: 12, 
-            fontWeight: '600',
-            textTransform: 'uppercase'
+
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <TouchableOpacity
+            onPress={handleCopyData}
+            style={{
+              padding: 6,
+              borderRadius: 6,
+              backgroundColor: '#334155',
+            }}
+          >
+            <Copy color="#64748b" size={16} />
+          </TouchableOpacity>
+          
+          <View style={{
+            backgroundColor: `${getPriorityColor(item.priority)}20`,
+            paddingHorizontal: 10,
+            paddingVertical: 4,
+            borderRadius: 6,
           }}>
-            {item.priority || 'N/A'}
-          </Text>
+            <Text style={{ 
+              color: getPriorityColor(item.priority), 
+              fontSize: 12, 
+              fontWeight: '600',
+              textTransform: 'uppercase'
+            }}>
+              {item.priority || 'N/A'}
+            </Text>
+          </View>
         </View>
       </View>
 

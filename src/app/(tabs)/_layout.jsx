@@ -1,6 +1,6 @@
 import { Tabs } from "expo-router";
 import { Home, Settings, User } from "lucide-react-native";
-import { theme } from "../../theme";
+import { Platform } from "react-native";
 
 export default function TabLayout() {
   return (
@@ -8,21 +8,29 @@ export default function TabLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: theme.colors.card,
-          borderTopWidth: 1,
-          borderTopColor: theme.colors.border,
-          paddingTop: theme.spacing.xs,
-          height: 85,
+          backgroundColor: '#1e293b',
+          borderTopWidth: 1.5,
+          borderTopColor: '#334155',
+          paddingTop: 8,
+          paddingBottom: Platform.OS === 'ios' ? 20 : 16,
+          height:  70,
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          elevation: 0,
         },
-        tabBarActiveTintColor: theme.colors.primary,
-        tabBarInactiveTintColor: theme.colors.textMuted,
+        tabBarActiveTintColor: '#60a5fa',
+        tabBarInactiveTintColor: '#94a3b8',
         tabBarLabelStyle: {
-          fontSize: theme.font.size.sm,
-          fontWeight: theme.font.weight.semibold,
-          marginBottom: theme.spacing.sm,
+          fontSize: 11,
+          fontWeight: '600',
+          marginTop: -4,
+          marginBottom: 0,
         },
         tabBarIconStyle: {
-          marginTop: theme.spacing.xs,
+          marginTop: -8,
+          marginBottom: 0,
         },
       }}
     >
@@ -50,38 +58,18 @@ export default function TabLayout() {
         }}
       />
 
-      {/* Hidden screens - commented out for future use */}
-      {/* 
-      <Tabs.Screen
-        name="reports"
-        options={{
-          href: null,
-          title: "Reports",
-          tabBarIcon: ({ color }) => <BarChart3 color={color} size={22} />,
-        }}
-      />
-
-      <Tabs.Screen
-        name="debtors"
-        options={{
-          href: null,
-          title: "Debtors",
-          tabBarIcon: ({ color }) => <Users color={color} size={22} />,
-        }}
-      />
-      */}
-
+      {/* Hidden screens */}
       <Tabs.Screen
         name="cases"
         options={{
-          href: null, // Hidden from tab bar
+          href: null,
         }}
       />
 
       <Tabs.Screen
         name="debtor/[id]"
         options={{
-          href: null, // Hidden from tab bar
+          href: null,
         }}
       />
     </Tabs>

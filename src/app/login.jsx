@@ -9,10 +9,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { 
   Lock, Eye, EyeOff, ArrowRight, ArrowLeft, AlertCircle, 
-  User, X, CheckCircle, Fingerprint, ScanFace
+  User, X, CheckCircle, Fingerprint, ScanFace, UserPlus
 } from 'lucide-react-native';
 import { useAuth } from '../lib/authContext';
-import BiometricEnrollmentModal from '../components/BiometricEnrollmentModal';
 
 export default function Login() {
   const insets = useSafeAreaInsets();
@@ -31,7 +30,6 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [toast, setToast] = useState({ show: false, message: '', type: 'error' });
   const [loading, setLoading] = useState(false);
-  const [showBiometricPrompt, setShowBiometricPrompt] = useState(false);
   const [fadeAnim] = useState(new Animated.Value(0));
   const [keyboardVisible, setKeyboardVisible] = useState(false);
 
@@ -143,14 +141,7 @@ export default function Login() {
     <View style={styles.container}>
       <StatusBar style="light" />
       
-      <TouchableOpacity
-        onPress={() => router.back()}
-        style={[styles.backButton, { top: insets.top + 16 }]}
-        accessibilityLabel="Go back"
-        accessibilityRole="button"
-      >
-        <ArrowLeft color="#ffffff" size={24} />
-      </TouchableOpacity>
+     
 
       {toast.show && (
         <Animated.View style={[
@@ -305,12 +296,30 @@ export default function Login() {
           </View>
 
           {!keyboardVisible && (
-            <View style={styles.footer}>
-              <Lock color="#64748b" size={16} />
-              <Text style={styles.footerText}>
-                Secure connection
-              </Text>
-            </View>
+            <>
+              {/* Register Link */}
+              <View style={styles.registerContainer}>
+                <Text style={styles.registerText}>Don't have an account? </Text>
+                <TouchableOpacity 
+                  onPress={() => router.push('/register')}
+                  disabled={loading}
+                  accessibilityLabel="Go to registration"
+                >
+                  <Text style={styles.registerLink}>Create Account</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Divider */}
+              <View style={styles.bottomDivider}>
+                <View style={styles.dividerLine} />
+              </View>
+
+              {/* Footer */}
+              <View style={styles.footer}>
+                <Lock color="#64748b" size={16} />
+                <Text style={styles.footerText}>Secure connection</Text>
+              </View>
+            </>
           )}
         </Animated.View>
       </KeyboardAvoidingView>
@@ -498,11 +507,32 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     opacity: 0.6,
   },
-  footer: {
+  registerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 24,
+  },
+  registerText: {
+    color: '#94a3b8',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  registerLink: {
+    color: '#3b82f6',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  bottomDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 20,
+    marginBottom: 16,
+  },
+  footer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   footerText: {
     color: '#64748b',

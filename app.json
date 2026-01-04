@@ -57,7 +57,8 @@
         {
           "faceIDPermission": "Allow $(PRODUCT_NAME) to use Face ID for secure login"
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "web": {
       "bundler": "metro",
