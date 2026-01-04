@@ -37,7 +37,7 @@ function RootNavigator() {
       router.replace("/login");
     } else if (isAuthenticated && segments[0] === 'login') {
       // User authenticated but on login page
-      router.replace("/(tabs)/reports");
+      router.replace("/(tabs)/index");
     }
   }, [isLoading, isAuthenticated, segments]);
 
