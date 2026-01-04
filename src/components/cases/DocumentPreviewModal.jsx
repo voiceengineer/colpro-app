@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Modal, TouchableOpacity, Image, ActivityIndicator, Dimensions } from 'react-native';
 import { X, AlertCircle } from 'lucide-react-native';
 import { documentsService } from '../../lib/services/documentsService';
@@ -9,25 +9,30 @@ const DocumentPreviewModal = ({ visible, document, onClose }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [currentUrlIndex, setCurrentUrlIndex] = useState(0);
-  const [allUrls] = useState(() => document ? documentsService.buildImageUrls(document) : []);
+  const [allUrls, setAllUrls] = useState([]);
+
+  useEffect(() => {
+    if (visible && document) {
+      const urls = documentsService.buildImageUrls(document);
+      setAllUrls(urls);
+      setCurrentUrlIndex(0);
+      setLoading(true);
+      setError(false);
+    }
+  }, [visible, document]);
 
   const handleImageError = () => {
-    console.log(`Preview error at URL ${currentUrlIndex + 1}/${allUrls.length}`);
-    
     if (currentUrlIndex < allUrls.length - 1) {
-      console.log('Trying next URL in preview...');
       setCurrentUrlIndex(currentUrlIndex + 1);
       setLoading(true);
       setError(false);
     } else {
-      console.log('All preview URLs failed');
       setLoading(false);
       setError(true);
     }
   };
 
   const handleImageLoad = () => {
-    console.log('Preview image loaded successfully');
     setLoading(false);
     setError(false);
   };
@@ -36,10 +41,11 @@ const DocumentPreviewModal = ({ visible, document, onClose }) => {
     setLoading(true);
     setError(false);
     setCurrentUrlIndex(0);
+    setAllUrls([]);
     onClose();
   };
 
-  if (!document) return null;
+  if (!document || !visible) return null;
 
   const currentUrl = allUrls[currentUrlIndex];
   const isBase64 = currentUrl?.startsWith('data:');
@@ -78,7 +84,6 @@ const DocumentPreviewModal = ({ visible, document, onClose }) => {
         flex: 1, 
         backgroundColor: 'rgba(0,0,0,0.98)',
       }}>
-        {/* Header */}
         <View style={{
           paddingTop: 50,
           paddingBottom: 16,
@@ -119,7 +124,6 @@ const DocumentPreviewModal = ({ visible, document, onClose }) => {
           </TouchableOpacity>
         </View>
 
-        {/* Image Container */}
         <View style={{ 
           flex: 1, 
           justifyContent: 'center', 
@@ -136,7 +140,7 @@ const DocumentPreviewModal = ({ visible, document, onClose }) => {
                 }}>
                   <ActivityIndicator size="large" color="#3b82f6" />
                   <Text style={{ color: '#64748b', fontSize: 14, marginTop: 12 }}>
-                    Loading image...
+                    Loading...
                   </Text>
                 </View>
               )}
@@ -154,14 +158,6 @@ const DocumentPreviewModal = ({ visible, document, onClose }) => {
                     textAlign: 'center'
                   }}>
                     Failed to load image
-                  </Text>
-                  <Text style={{ 
-                    color: '#64748b', 
-                    fontSize: 13, 
-                    marginTop: 8,
-                    textAlign: 'center'
-                  }}>
-                    The image may be corrupted or unavailable
                   </Text>
                 </View>
               ) : (
@@ -198,7 +194,6 @@ const DocumentPreviewModal = ({ visible, document, onClose }) => {
           )}
         </View>
 
-        {/* Footer Info */}
         {document.uploadedByName && (
           <View style={{
             paddingHorizontal: 20,

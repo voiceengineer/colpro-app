@@ -26,21 +26,22 @@ export default function TabLayout() {
         },
       }}
     >
-      {/* <Tabs.Screen
+      <Tabs.Screen
         name="reports"
         options={{
           title: "Reports",
+          
           tabBarIcon: ({ color }) => <BarChart3 color={color} size={22} />,
         }}
-      /> */}
+      />
 
-      {/* <Tabs.Screen
+      <Tabs.Screen
         name="debtors"
         options={{
           title: "Debtors",
           tabBarIcon: ({ color }) => <Users color={color} size={22} />,
         }}
-      /> */}
+      />
 
       <Tabs.Screen
         name="settings"
@@ -64,12 +65,12 @@ export default function TabLayout() {
         }}
       />
       {/* Hidden screen */}
-      {/* <Tabs.Screen
+      <Tabs.Screen
         name="debtor/[id]"
         options={{
           href: null,
         }}
-      /> */}
+      />
     </Tabs>
   );
 }

@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, Image, ActivityIndicator, Alert } from 'r
 import { ChevronDown, Image as ImageIcon, AlertCircle, Trash2 } from 'lucide-react-native';
 import { documentsService } from '../../lib/services/documentsService';
 
-const DocumentImage = ({ imageUrl, doc, onPress, onDelete }) => {
+const DocumentImage = ({ doc, onPress, onDelete }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -23,24 +23,18 @@ const DocumentImage = ({ imageUrl, doc, onPress, onDelete }) => {
     }
   };
 
-  const handleImageError = (e) => {
-    console.log(`Image error for ${doc.fileName} at URL ${currentUrlIndex + 1}/${allUrls.length}`);
-    
-    // Try next URL if available
+  const handleImageError = () => {
     if (currentUrlIndex < allUrls.length - 1) {
-      console.log('Trying next URL...');
-      setCurrentUrlIndex(currentUrlIndex + 1);
+      setCurrentUrlIndex(prev => prev + 1);
       setLoading(true);
       setError(false);
     } else {
-      console.log('All URLs failed for:', doc.fileName);
       setLoading(false);
       setError(true);
     }
   };
 
   const handleImageLoad = () => {
-    console.log(`Image loaded successfully from URL ${currentUrlIndex + 1}`);
     setLoading(false);
     setError(false);
   };
@@ -60,7 +54,7 @@ const DocumentImage = ({ imageUrl, doc, onPress, onDelete }) => {
             setDeleting(true);
             try {
               await onDelete(doc);
-            } finally {
+            } catch (error) {
               setDeleting(false);
             }
           }
@@ -128,7 +122,6 @@ const DocumentImage = ({ imageUrl, doc, onPress, onDelete }) => {
             />
           )}
           
-          {/* Delete Button */}
           <TouchableOpacity
             onPress={handleDelete}
             disabled={deleting}
@@ -152,7 +145,6 @@ const DocumentImage = ({ imageUrl, doc, onPress, onDelete }) => {
             )}
           </TouchableOpacity>
 
-          {/* Date Label */}
           {!error && doc.createdAt && (
             <View style={{
               position: 'absolute',
@@ -198,7 +190,6 @@ const DocumentsSection = ({
 }) => {
   return (
     <>
-      {/* Toggle Button */}
       <TouchableOpacity
         onPress={onToggle}
         style={{
@@ -236,7 +227,6 @@ const DocumentsSection = ({
         />
       </TouchableOpacity>
 
-      {/* Documents Grid */}
       {expanded && (
         <View style={{ marginBottom: 10 }}>
           {loading ? (
@@ -273,16 +263,14 @@ const DocumentsSection = ({
               flexWrap: 'wrap',
               gap: 6
             }}>
-              {documents.map((doc, index) => {
-                return (
-                  <DocumentImage
-                    key={doc.id || index}
-                    doc={doc}
-                    onPress={() => onDocumentPress(doc)}
-                    onDelete={onDocumentDelete}
-                  />
-                );
-              })}
+              {documents.map((doc, index) => (
+                <DocumentImage
+                  key={doc.id || index}
+                  doc={doc}
+                  onPress={() => onDocumentPress(doc)}
+                  onDelete={onDocumentDelete}
+                />
+              ))}
             </View>
           )}
         </View>

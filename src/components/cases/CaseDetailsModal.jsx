@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Modal, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, Modal, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { X, Camera } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -146,24 +146,19 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
     }
   };
 
-  // Convert image to PNG format (better quality for photos)
-  const convertImageToPNG = async (uri) => {
+  const convertImageToJPEG = async (uri) => {
     try {
-      console.log('Converting image to PNG format...');
-      
       const manipulatedImage = await ImageManipulator.manipulateAsync(
         uri,
-        [{ resize: { width: 1920 } }], // Resize to max width 1920px
+        [{ resize: { width: 1920 } }],
         {
-          compress: 1, // Maximum quality for PNG
-          format: ImageManipulator.SaveFormat.PNG
+          compress: 0.7,
+          format: ImageManipulator.SaveFormat.JPEG
         }
       );
       
-      console.log('Image converted successfully:', manipulatedImage.uri);
       return manipulatedImage.uri;
     } catch (error) {
-      console.error('Image conversion failed:', error);
       throw new Error('Failed to process image');
     }
   };
@@ -184,14 +179,13 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ['images'],
         allowsEditing: false,
-        quality: 1, // Maximum quality
+        quality: 0.7,
       });
 
       if (!result.canceled && result.assets[0]) {
         await uploadDocument(result.assets[0]);
       }
     } catch (error) {
-      console.error('Camera error:', error);
       Alert.alert('Error', 'Failed to open camera');
     }
   };
@@ -200,83 +194,56 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
     setUploading(true);
     
     try {
-      // Convert image to PNG format
-      console.log('Starting image conversion...');
-      const convertedUri = await convertImageToPNG(asset.uri);
+      // Convert image to JPEG
+      const convertedUri = await convertImageToJPEG(asset.uri);
       
-      const fileName = `case_${caseId}_${Date.now()}.png`;
-      const mimeType = 'image/png';
+      const fileName = `case_${caseId}_${Date.now()}.jpg`;
+      const mimeType = 'image/jpeg';
       
-      // Check if FileSystem is available
-      if (!FileSystem || !FileSystem.readAsStringAsync) {
-        throw new Error('FileSystem is not available. Please restart the app.');
-      }
-      
-      // Convert to base64 using FileSystem
-      console.log('Converting PNG to base64...');
-      console.log('FileSystem available:', !!FileSystem);
-      
-      // Use legacy FileSystem API
+      // Convert to base64
       const base64 = await FileSystem.readAsStringAsync(convertedUri, {
         encoding: FileSystem.EncodingType.Base64,
       });
       
-      // Create data URL
       const base64DataUrl = `data:${mimeType};base64,${base64}`;
-      
-      console.log('Base64 conversion complete');
-      console.log('Base64 length:', base64.length);
-      console.log('Data URL prefix:', base64DataUrl.substring(0, 50));
-      
-      // Get file size
       const fileInfo = await FileSystem.getInfoAsync(convertedUri);
-      const fileSize = fileInfo.size || 0;
       
-      console.log('File size:', fileSize);
-      
-      // Save locally with base64
+      // Save locally first
       await documentsService.saveLocalUpload(caseId, {
         fileName: fileName,
         filePath: base64DataUrl,
-        fileSize: fileSize,
+        fileSize: fileInfo.size || 0,
         mimeType: mimeType,
         createdAt: new Date().toISOString(),
         isBase64: true
       });
       
-      console.log('Image saved locally successfully');
+      // Show immediately in UI
+      await fetchDocuments();
+      setShowDocuments(true);
+      setUploading(false);
       
-      // Try to upload to server in background (non-blocking)
+      // Upload to server in background (silently, no UI refresh)
       documentsService.uploadTaskAttachment(caseId, convertedUri, fileName, mimeType)
-        .then(() => {
-          console.log('Background upload to server succeeded');
-          // Refresh documents after successful upload
-          fetchDocuments();
-        })
         .catch((err) => {
-          console.log('Task attachment upload failed:', err.message);
           if (err.message === 'TASK_NOT_FOUND') {
             return documentsService.uploadFile(caseId, convertedUri, fileName, mimeType);
           }
           throw err;
         })
-        .then(() => {
-          console.log('Background upload to files endpoint succeeded');
-          fetchDocuments();
+        .then((response) => {
+          // Silently replace local version with server version
+          if (response) {
+            documentsService.replaceLocalWithServer(caseId, fileName, response);
+          }
         })
         .catch((err) => {
-          console.log('Background upload failed (ignored):', err.message);
+          console.log('Background upload failed:', err.message);
         });
       
-      Alert.alert('Success', 'Photo saved successfully');
-      await fetchDocuments();
-      setShowDocuments(true);
     } catch (error) {
-      console.error('Upload error:', error);
-      console.error('Error stack:', error.stack);
-      showError(error.message || 'Failed to save photo');
-    } finally {
       setUploading(false);
+      showError(error.message || 'Failed to save photo');
     }
   };
 
@@ -290,7 +257,6 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
         throw new Error('Cannot determine document type');
       }
       
-      Alert.alert('Success', 'Photo deleted successfully');
       await fetchDocuments();
     } catch (error) {
       showError(error.message || 'Failed to delete photo');
@@ -313,7 +279,6 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
     <>
       <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.95)' }}>
-          {/* Header */}
           <View style={{ 
             backgroundColor: '#1e293b',
             paddingTop: 50,
@@ -384,7 +349,7 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
                       <>
                         <ActivityIndicator size="small" color="#3b82f6" />
                         <Text style={{ color: '#3b82f6', fontSize: 15, marginLeft: 10 }}>
-                          Processing...
+                          Saving...
                         </Text>
                       </>
                     ) : (
@@ -447,7 +412,10 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
       <DocumentPreviewModal
         visible={showPreview}
         document={previewDocument}
-        onClose={() => setShowPreview(false)}
+        onClose={() => {
+          setShowPreview(false);
+          setPreviewDocument(null);
+        }}
       />
     </>
   );
