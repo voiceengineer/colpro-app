@@ -8,14 +8,11 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Search, Briefcase, Calendar, DollarSign, AlertCircle, User, Phone } from 'lucide-react-native';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
-
-import { apiService } from '../../lib/apiService';
+import { casesService } from '../../lib/services/casesService';
 import { useAuth } from '../../lib/authContext';
 import { useDebounce } from '../../hooks/useDebounce';
 import CaseDetailsModal from '../../components/cases/CaseDetailsModal';
 
-// It's good practice to move complex components to their own files.
-// For this review, we'll memoize it here for a performance boost.
 const CaseCard = React.memo(({ item, handleCasePress }) => {
   const statusColor = item.status?.color || '#64748b';
 
@@ -225,7 +222,7 @@ export default function Cases() {
         limit: 20,
         search: debouncedSearch.trim(),
       };
-      const response = await apiService.getCases(params);
+      const response = await casesService.getCases(params);
 
       // Normalize the API response
       if (response?.items && Array.isArray(response.items)) {
@@ -245,11 +242,10 @@ export default function Cases() {
       const totalPages = lastPage.meta?.totalPages || 1;
       return currentPage < totalPages ? currentPage + 1 : undefined;
     },
-    enabled: !!user?.id, // Only run the query if the user is loaded
+    enabled: !!user?.id,
   });
 
   if (error) {
-    // Handle errors globally or with a toast component
     const errorMessage = error.message;
     if (errorMessage === 'UNAUTHORIZED') {
       Alert.alert('Session Expired', 'Please login again', [{ text: 'OK', onPress: () => router.replace('/login') }]);
@@ -279,7 +275,6 @@ export default function Cases() {
   };
 
   const handleCaseUpdate = () => {
-    // This will refetch the data automatically thanks to TanStack Query's cache invalidation
     queryClient.invalidateQueries(['cases']);
   };
 

@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Modal, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, Modal, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Platform } from 'react-native';
 import { X, Camera } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { apiService } from '../../lib/apiService';
+import * as ImageManipulator from 'expo-image-manipulator';
+import * as FileSystem from 'expo-file-system/legacy';
+import { casesService } from '../../lib/services/casesService';
+import { documentsService } from '../../lib/services/documentsService';
+import { paymentsService } from '../../lib/services/paymentsService';
 import { useAuth } from '../../lib/authContext';
 import DocumentPreviewModal from './DocumentPreviewModal';
 import CaseInfoSection from './CaseInfoSection';
@@ -35,8 +39,6 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
     if (visible && caseId) {
       resetState();
       fetchAllData();
-    } else {
-      resetState();
     }
   }, [visible, caseId]);
 
@@ -58,8 +60,8 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
   const fetchAllData = async () => {
     try {
       const [caseResponse, statusesResponse] = await Promise.all([
-        apiService.getCaseById(caseId),
-        apiService.getCaseStatuses()
+        casesService.getCaseById(caseId),
+        casesService.getCaseStatuses()
       ]);
       
       setCaseData(caseResponse);
@@ -69,12 +71,12 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
       setLoading(false);
 
       fetchDocuments();
+      
       if (caseResponse.accountId && canViewPayments()) {
         fetchPaymentHistory(caseResponse.accountId);
       }
-      
     } catch (error) {
-      handleError(error);
+      showError(error.message || 'Failed to load case details');
       onClose();
     }
   };
@@ -82,8 +84,17 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
   const fetchDocuments = async () => {
     setLoadingDocuments(true);
     try {
-      const docs = await apiService.getCaseDocuments(caseId);
-      setDocuments(docs || []);
+      const [taskDocs, localDocs] = await Promise.all([
+        documentsService.getTaskAttachments(caseId).catch(() => []),
+        documentsService.getLocalUploads(caseId).catch(() => [])
+      ]);
+      
+      const allDocs = [...taskDocs, ...localDocs];
+      const uniqueDocs = allDocs.filter((doc, index, self) => 
+        index === self.findIndex(d => d.fileName === doc.fileName)
+      );
+      
+      setDocuments(uniqueDocs);
     } catch (error) {
       setDocuments([]);
     } finally {
@@ -93,7 +104,7 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
 
   const fetchPaymentHistory = async (accountId) => {
     try {
-      const paymentData = await apiService.getPaymentHistory(accountId);
+      const paymentData = await paymentsService.getPaymentHistory(accountId);
       setPayments(paymentData);
     } catch (error) {
       setPayments([]);
@@ -109,10 +120,11 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
     const currentStatusId = caseData?.status?.id || caseData?.statusId;
     const currentRemarks = caseData?.notes || caseData?.remarks || '';
     
-    const hasStatusChange = selectedStatusId && selectedStatusId !== currentStatusId;
-    const hasRemarksChange = remarks.trim() !== currentRemarks;
+    const hasChanges = 
+      (selectedStatusId && selectedStatusId !== currentStatusId) ||
+      (remarks.trim() !== currentRemarks);
 
-    if (!hasStatusChange && !hasRemarksChange) {
+    if (!hasChanges) {
       Alert.alert('No Changes', 'Please make changes before saving');
       return;
     }
@@ -120,17 +132,39 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
     setUpdating(true);
     try {
       const updateData = {};
-      if (hasStatusChange) updateData.statusId = selectedStatusId;
-      if (hasRemarksChange) updateData.notes = remarks.trim();
+      if (selectedStatusId !== currentStatusId) updateData.statusId = selectedStatusId;
+      if (remarks.trim() !== currentRemarks) updateData.notes = remarks.trim();
 
-      await apiService.updateCase(caseId, updateData);
+      await casesService.updateCase(caseId, updateData);
       Alert.alert('Success', 'Case updated successfully');
       onUpdate?.();
       onClose();
     } catch (error) {
-      handleError(error);
+      showError(error.message || 'Failed to update case');
     } finally {
       setUpdating(false);
+    }
+  };
+
+  // Convert image to PNG format (better quality for photos)
+  const convertImageToPNG = async (uri) => {
+    try {
+      console.log('Converting image to PNG format...');
+      
+      const manipulatedImage = await ImageManipulator.manipulateAsync(
+        uri,
+        [{ resize: { width: 1920 } }], // Resize to max width 1920px
+        {
+          compress: 1, // Maximum quality for PNG
+          format: ImageManipulator.SaveFormat.PNG
+        }
+      );
+      
+      console.log('Image converted successfully:', manipulatedImage.uri);
+      return manipulatedImage.uri;
+    } catch (error) {
+      console.error('Image conversion failed:', error);
+      throw new Error('Failed to process image');
     }
   };
 
@@ -143,20 +177,21 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Camera permission is needed to take photos');
+        Alert.alert('Permission Required', 'Camera permission is needed');
         return;
       }
 
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ['images'],
         allowsEditing: false,
-        quality: 0.7,
+        quality: 1, // Maximum quality
       });
 
       if (!result.canceled && result.assets[0]) {
-        uploadDocument(result.assets[0]);
+        await uploadDocument(result.assets[0]);
       }
     } catch (error) {
+      console.error('Camera error:', error);
       Alert.alert('Error', 'Failed to open camera');
     }
   };
@@ -165,73 +200,120 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
     setUploading(true);
     
     try {
-      const uriParts = asset.uri.split('.');
-      const fileType = uriParts[uriParts.length - 1].toLowerCase();
-      const fileName = `case_${caseId}_${Date.now()}.${fileType}`;
-      const mimeType = `image/${fileType === 'jpg' ? 'jpeg' : fileType}`;
+      // Convert image to PNG format
+      console.log('Starting image conversion...');
+      const convertedUri = await convertImageToPNG(asset.uri);
       
-      await apiService.uploadFile(caseId, asset.uri, fileName, mimeType);
+      const fileName = `case_${caseId}_${Date.now()}.png`;
+      const mimeType = 'image/png';
       
-      Alert.alert('Success', 'Photo uploaded successfully');
+      // Check if FileSystem is available
+      if (!FileSystem || !FileSystem.readAsStringAsync) {
+        throw new Error('FileSystem is not available. Please restart the app.');
+      }
       
+      // Convert to base64 using FileSystem
+      console.log('Converting PNG to base64...');
+      console.log('FileSystem available:', !!FileSystem);
+      
+      // Use legacy FileSystem API
+      const base64 = await FileSystem.readAsStringAsync(convertedUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      
+      // Create data URL
+      const base64DataUrl = `data:${mimeType};base64,${base64}`;
+      
+      console.log('Base64 conversion complete');
+      console.log('Base64 length:', base64.length);
+      console.log('Data URL prefix:', base64DataUrl.substring(0, 50));
+      
+      // Get file size
+      const fileInfo = await FileSystem.getInfoAsync(convertedUri);
+      const fileSize = fileInfo.size || 0;
+      
+      console.log('File size:', fileSize);
+      
+      // Save locally with base64
+      await documentsService.saveLocalUpload(caseId, {
+        fileName: fileName,
+        filePath: base64DataUrl,
+        fileSize: fileSize,
+        mimeType: mimeType,
+        createdAt: new Date().toISOString(),
+        isBase64: true
+      });
+      
+      console.log('Image saved locally successfully');
+      
+      // Try to upload to server in background (non-blocking)
+      documentsService.uploadTaskAttachment(caseId, convertedUri, fileName, mimeType)
+        .then(() => {
+          console.log('Background upload to server succeeded');
+          // Refresh documents after successful upload
+          fetchDocuments();
+        })
+        .catch((err) => {
+          console.log('Task attachment upload failed:', err.message);
+          if (err.message === 'TASK_NOT_FOUND') {
+            return documentsService.uploadFile(caseId, convertedUri, fileName, mimeType);
+          }
+          throw err;
+        })
+        .then(() => {
+          console.log('Background upload to files endpoint succeeded');
+          fetchDocuments();
+        })
+        .catch((err) => {
+          console.log('Background upload failed (ignored):', err.message);
+        });
+      
+      Alert.alert('Success', 'Photo saved successfully');
       await fetchDocuments();
       setShowDocuments(true);
-      
     } catch (error) {
-      handleError(error);
+      console.error('Upload error:', error);
+      console.error('Error stack:', error.stack);
+      showError(error.message || 'Failed to save photo');
     } finally {
       setUploading(false);
     }
   };
 
-  const handleViewDocument = (doc) => {
-    setPreviewDocument(doc);
-    setShowPreview(true);
+  const handleDocumentDelete = async (doc) => {
+    try {
+      if (doc.id?.startsWith('local_')) {
+        await documentsService.deleteLocalUpload(caseId, doc.id);
+      } else if (doc.taskId) {
+        await documentsService.deleteTaskAttachment(doc.taskId, doc.id);
+      } else {
+        throw new Error('Cannot determine document type');
+      }
+      
+      Alert.alert('Success', 'Photo deleted successfully');
+      await fetchDocuments();
+    } catch (error) {
+      showError(error.message || 'Failed to delete photo');
+    }
   };
 
-  const handleError = (error) => {
-    const messages = {
-      'SERVER_UNAVAILABLE': 'Server is unavailable. Please try again later.',
+  const showError = (message) => {
+    const errorMessages = {
       'UNAUTHORIZED': 'Your session has expired. Please log in again.',
       'FORBIDDEN': 'You do not have permission to perform this action.',
-      'NETWORK_ERROR': 'Network error. Please check your connection.',
-      'ENDPOINT_NOT_FOUND': 'Upload feature is not available on the server.',
       'FILE_TOO_LARGE': 'File is too large. Please choose a smaller file.',
-      'TIMEOUT': 'Upload timeout. Please try again.'
+      'TIMEOUT': 'Request timeout. Please try again.',
+      'NETWORK_ERROR': 'Network error. Please check your connection.',
     };
 
-    Alert.alert('Error', messages[error.message] || error.message || 'An error occurred');
+    Alert.alert('Error', errorMessages[message] || message);
   };
-
-  const SkeletonLoader = () => (
-    <View style={{ padding: 20 }}>
-      {[1, 2, 3, 4].map((i) => (
-        <View key={i} style={{
-          backgroundColor: '#1e293b',
-          borderRadius: 10,
-          padding: 14,
-          marginBottom: 10,
-          borderWidth: 1,
-          borderColor: '#334155',
-          flexDirection: 'row',
-          alignItems: 'center'
-        }}>
-          <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#334155' }} />
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <View style={{ backgroundColor: '#334155', height: 12, width: '40%', borderRadius: 4, marginBottom: 6 }} />
-            <View style={{ backgroundColor: '#334155', height: 16, width: '70%', borderRadius: 4 }} />
-          </View>
-        </View>
-      ))}
-    </View>
-  );
-
-  const debtorName = caseData?.account?.fullName || caseData?.debtorName;
 
   return (
     <>
       <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.95)' }}>
+          {/* Header */}
           <View style={{ 
             backgroundColor: '#1e293b',
             paddingTop: 50,
@@ -247,9 +329,9 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
               <Text style={{ color: '#ffffff', fontSize: 22, fontWeight: 'bold' }}>
                 Case #{caseId}
               </Text>
-              {debtorName && (
+              {caseData?.account?.fullName && (
                 <Text style={{ color: '#64748b', fontSize: 14, marginTop: 4 }}>
-                  {debtorName}
+                  {caseData.account.fullName}
                 </Text>
               )}
             </View>
@@ -269,7 +351,9 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
           </View>
 
           {loading ? (
-            <SkeletonLoader />
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+              <ActivityIndicator size="large" color="#3b82f6" />
+            </View>
           ) : (
             <ScrollView 
               style={{ flex: 1, backgroundColor: '#0f172a' }}
@@ -289,7 +373,7 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
                       padding: 16,
                       marginBottom: 10,
                       borderWidth: 1,
-                      borderColor: canUploadDocuments() ? '#334155' : '#422006',
+                      borderColor: '#334155',
                       flexDirection: 'row',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -300,19 +384,19 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
                       <>
                         <ActivityIndicator size="small" color="#3b82f6" />
                         <Text style={{ color: '#3b82f6', fontSize: 15, marginLeft: 10 }}>
-                          Uploading...
+                          Processing...
                         </Text>
                       </>
                     ) : (
                       <>
-                        <Camera color={canUploadDocuments() ? "#3b82f6" : "#fbbf24"} size={20} />
+                        <Camera color="#3b82f6" size={20} />
                         <Text style={{ 
-                          color: canUploadDocuments() ? '#3b82f6' : '#fbbf24', 
+                          color: '#3b82f6', 
                           fontSize: 15, 
                           fontWeight: '600',
                           marginLeft: 10
                         }}>
-                          {canUploadDocuments() ? 'Take Photo' : 'Camera Restricted'}
+                          Take Photo
                         </Text>
                       </>
                     )}
@@ -323,7 +407,11 @@ const CaseDetailsModal = ({ visible, caseId, onClose, onUpdate }) => {
                     loading={loadingDocuments}
                     expanded={showDocuments}
                     onToggle={() => setShowDocuments(!showDocuments)}
-                    onDocumentPress={handleViewDocument}
+                    onDocumentPress={(doc) => {
+                      setPreviewDocument(doc);
+                      setShowPreview(true);
+                    }}
+                    onDocumentDelete={handleDocumentDelete}
                   />
 
                   {canViewPayments() && (
