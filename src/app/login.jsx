@@ -67,7 +67,7 @@ export default function Login() {
     try {
       await loginWithBiometric();
       showToast('Login successful', 'success');
-      setTimeout(() => router.replace('/(tabs)/reports'), 1000);
+      setTimeout(() => router.replace('/(tabs)/index'), 1000);
     } catch (error) {
       showToast(error?.message || 'Authentication failed');
     } finally {
@@ -101,7 +101,7 @@ export default function Login() {
               text: 'Skip',
               onPress: () => {
                 showToast('Login successful', 'success');
-                setTimeout(() => router.replace('/(tabs)/reports'), 500);
+                setTimeout(() => router.replace('/(tabs)/index'), 500);
               },
               style: 'cancel'
             },
@@ -118,7 +118,7 @@ export default function Login() {
                 } catch (error) {
                   showToast('Error enabling biometric', 'error');
                 }
-                setTimeout(() => router.replace('/(tabs)/reports'), 1000);
+                setTimeout(() => router.replace('/(tabs)/index'), 1000);
               }
             }
           ],
@@ -127,7 +127,7 @@ export default function Login() {
       } else {
         showToast('Login successful', 'success');
         setLoading(false);
-        setTimeout(() => router.replace('/(tabs)/reports'), 1000);
+        setTimeout(() => router.replace('/(tabs)/index'), 1000);
       }
     } catch (error) {
       showToast(error?.message || 'Login failed');

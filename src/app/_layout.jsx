@@ -45,7 +45,7 @@ function RootNavigator() {
   useEffect(() => {
     if (segments[0] === '+not-found') {
       if (isAuthenticated) {
-        router.replace("/(tabs)/profile");
+        router.replace("/(tabs)/index");
       } else {
         router.replace("/login");
       }

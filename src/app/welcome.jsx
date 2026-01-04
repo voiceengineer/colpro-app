@@ -18,7 +18,7 @@ export default function Index() {
       
       // Navigate based on auth status
       if (isAuthenticated) {
-        router.replace('/(tabs)/reports');
+        router.replace('/(tabs)/index');
       } else {
         router.replace('/login');
       }
