@@ -216,8 +216,8 @@ export default function Profile() {
         <View style={{ marginBottom: 16 }}>
           <MenuButton 
             icon={FileText}
-            label="PDF File"
-            onPress={() => Alert.alert('PDF', 'PDF feature coming soon')}
+            label="Contract Documents"
+            onPress={() => router.push('/contracts')}
             color="#3b82f6"
           />
           <MenuButton 
@@ -281,7 +281,7 @@ export default function Profile() {
           />
           <InfoRow 
             icon={MapPin}
-            label="Employee Address"
+            label="Employee Address" 
             value={user?.employeeAddress}
           />
           <InfoRow 
