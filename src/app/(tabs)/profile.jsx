@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Alert, ActivityIndicator, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { 
   FileText, Lock, DollarSign, MapPin, User, ChevronRight, 
-  Globe, LogOut, Phone, Mail, Hash, Shield, CreditCard
+  Globe, LogOut, Phone, Mail, Hash, Shield, CreditCard, Calendar, MapPinned
 } from 'lucide-react-native';
 import { useAuth } from '../../lib/authContext';
 
@@ -76,12 +76,12 @@ export default function Profile() {
     </TouchableOpacity>
   );
 
-  const InfoRow = ({ icon: Icon, label, value }) => (
+  const InfoRow = ({ icon: Icon, label, value, isLast = false }) => (
     <View style={{
       flexDirection: 'row',
       alignItems: 'center',
       paddingVertical: 12,
-      borderBottomWidth: 1,
+      borderBottomWidth: isLast ? 0 : 1,
       borderBottomColor: '#334155',
     }}>
       <View style={{
@@ -105,6 +105,13 @@ export default function Profile() {
       </View>
     </View>
   );
+
+  // Format date helper
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Not available';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: '#0f172a' }}>
@@ -186,8 +193,22 @@ export default function Profile() {
               {user?.name || user?.username || 'User'}
             </Text>
             <Text style={{ color: '#94a3b8', fontSize: 13, fontWeight: '500' }}>
-              {user?.phone || user?.email || 'No contact info'}
+              {user?.phoneNumber || user?.username || 'No contact info'}
             </Text>
+            {user?.officerType && (
+              <View style={{
+                backgroundColor: 'rgba(139, 92, 246, 0.2)',
+                borderRadius: 6,
+                paddingHorizontal: 8,
+                paddingVertical: 4,
+                marginTop: 6,
+                alignSelf: 'flex-start',
+              }}>
+                <Text style={{ color: '#a78bfa', fontSize: 11, fontWeight: '700' }}>
+                  {user.officerType}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -208,12 +229,12 @@ export default function Profile() {
           <MenuButton 
             icon={DollarSign}
             label="Revenues"
-            onPress={() => Alert.alert('Revenues', 'Revenues feature coming soon')}
+            onPress={() => Alert.alert('Revenues', `Amount Collected: ${user?.amountCollected || 0}`)}
             color="#10b981"
           />
         </View>
 
-        {/* Personal Information - Compact Card */}
+        {/* Personal Information */}
         <View style={{
           backgroundColor: '#1e293b',
           borderRadius: 16,
@@ -235,59 +256,126 @@ export default function Profile() {
 
           <InfoRow 
             icon={Hash}
-            label="PIN"
+            label="Employee ID"
             value={user?.id?.toString()}
           />
           <InfoRow 
-            icon={CreditCard}
-            label="Passport"
-            value={user?.passport}
-          />
-          <InfoRow 
-            icon={MapPin}
-            label="Address"
-            value={user?.address}
-          />
-          <InfoRow 
-            icon={Phone}
-            label="Phone"
-            value={user?.phone}
-          />
-          <InfoRow 
-            icon={Mail}
-            label="Email"
-            value={user?.email}
+            icon={Hash}
+            label="PINFL"
+            value={user?.pinfl}
           />
           <InfoRow 
             icon={User}
-            label="Username"
-            value={user?.username}
+            label="Name"
+            value={user?.name}
           />
-          <View style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            paddingVertical: 12,
+          <InfoRow 
+            icon={Phone}
+            label="Phone Number"
+            value={user?.phoneNumber}
+          />
+          <InfoRow 
+            icon={User}
+            label="Login"
+            value={user?.login}
+          />
+          <InfoRow 
+            icon={MapPin}
+            label="Employee Address"
+            value={user?.employeeAddress}
+          />
+          <InfoRow 
+            icon={Shield}
+            label="Role"
+            value={user?.role}
+          />
+          <InfoRow 
+            icon={Shield}
+            label="Status"
+            value={user?.status ? user.status.charAt(0).toUpperCase() + user.status.slice(1) : 'Not available'}
+            isLast={true}
+          />
+        </View>
+
+        {/* Passport Information */}
+        <View style={{
+          backgroundColor: '#1e293b',
+          borderRadius: 16,
+          padding: 16,
+          marginBottom: 16,
+          borderWidth: 1,
+          borderColor: '#334155',
+        }}>
+          <Text style={{ 
+            color: '#cbd5e1', 
+            fontSize: 13, 
+            fontWeight: '700', 
+            marginBottom: 8,
+            textTransform: 'uppercase',
+            letterSpacing: 1,
           }}>
-            <View style={{
-              backgroundColor: 'rgba(59, 130, 246, 0.15)',
-              borderRadius: 8,
-              width: 36,
-              height: 36,
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginRight: 12,
-            }}>
-              <Shield color="#60a5fa" size={18} strokeWidth={2.5} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: '#94a3b8', fontSize: 11, fontWeight: '600', marginBottom: 2 }}>
-                Role
-              </Text>
-              <Text style={{ color: '#f1f5f9', fontSize: 14, fontWeight: '600' }}>
-                {user?.role || 'Not available'}
-              </Text>
-            </View>
-          </View>
+            Passport Details
+          </Text>
+
+          <InfoRow 
+            icon={CreditCard}
+            label="Passport Number"
+            value={user?.passportNumber}
+          />
+          <InfoRow 
+            icon={Calendar}
+            label="Issue Date"
+            value={formatDate(user?.passportIssueDate)}
+          />
+          <InfoRow 
+            icon={MapPinned}
+            label="Issue Place"
+            value={user?.passportIssuePlace}
+            isLast={true}
+          />
+        </View>
+
+        {/* Work Statistics */}
+        <View style={{
+          backgroundColor: '#1e293b',
+          borderRadius: 16,
+          padding: 16,
+          marginBottom: 16,
+          borderWidth: 1,
+          borderColor: '#334155',
+        }}>
+          <Text style={{ 
+            color: '#cbd5e1', 
+            fontSize: 13, 
+            fontWeight: '700', 
+            marginBottom: 8,
+            textTransform: 'uppercase',
+            letterSpacing: 1,
+          }}>
+            Work Statistics
+          </Text>
+
+          <InfoRow 
+            icon={DollarSign}
+            label="Amount Collected"
+            value={`${user?.amountCollected || 0}`}
+          />
+          <InfoRow 
+            icon={Hash}
+            label="Active Tasks"
+            value={user?.activeTasks?.toString() || '0'}
+          />
+          <InfoRow 
+            icon={Calendar}
+            label="Last Login"
+            value={formatDate(user?.lastLogin)}
+          />
+          <InfoRow 
+            icon={Calendar}
+            label="Created At"
+            value={formatDate(user?.createdAt)}
+            isLast={true}
+          />
         </View>
 
         {/* Settings */}

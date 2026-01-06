@@ -87,9 +87,9 @@ export const casesService = {
     return await response.json();
   },
 
-  async getUserCasesCount() {
+  async getUserCasesCount(userId) {
     try {
-      const response = await this.getCases({ limit: 1000 });
+      const response = await this.getCases({ limit: 1000, agentId: userId });
 
       if (Array.isArray(response)) return response.length;
       if (response?.items) return response.items.length;

@@ -10,10 +10,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { 
   ArrowLeft, Eye, EyeOff, User, Phone, Lock, 
-  CreditCard, MapPin, Calendar, FileText
+  CreditCard, MapPin, Calendar, FileText, AtSign
 } from 'lucide-react-native';
 import { registrationService } from '../lib/services/registrationService';
-import { useAuth } from '../lib/authContext';
 
 const InputField = React.memo(({ 
   icon: Icon, 
@@ -84,9 +83,15 @@ const InputField = React.memo(({
           returnKeyType={returnKeyType}
           onSubmitEditing={onSubmitEditing}
           pointerEvents={onPress ? 'none' : 'auto'}
+          accessibilityLabel={label}
         />
         {showEye && (
-          <TouchableOpacity onPress={onEyePress} style={{ padding: 8 }}>
+          <TouchableOpacity 
+            onPress={onEyePress} 
+            style={{ padding: 8 }}
+            accessibilityLabel={showPasswordValue ? "Hide password" : "Show password"}
+            accessibilityRole="button"
+          >
             {showPasswordValue ? 
               <EyeOff color="#64748b" size={22} /> : 
               <Eye color="#64748b" size={22} />
@@ -103,6 +108,7 @@ export default function Registration() {
   const router = useRouter();
   
   // Input refs for navigation
+  const usernameRef = useRef(null);
   const nameRef = useRef(null);
   const phoneRef = useRef(null);
   const passwordRef = useRef(null);
@@ -113,6 +119,7 @@ export default function Registration() {
   const addressRef = useRef(null);
   
   const [formData, setFormData] = useState({
+    username: '',
     name: '',
     phoneNumber: '',
     password: '',
@@ -171,6 +178,32 @@ export default function Registration() {
     }
   };
 
+  const formatPhoneNumber = (text) => {
+    // Remove all non-numeric characters
+    const cleaned = text.replace(/\D/g, '');
+    
+    // Limit to 12 digits (998 + 9 digits)
+    const limited = cleaned.slice(0, 12);
+    
+    // Format: +998 (XX) XXX-XX-XX
+    if (limited.length <= 3) {
+      return limited;
+    } else if (limited.length <= 5) {
+      return `${limited.slice(0, 3)} (${limited.slice(3)})`;
+    } else if (limited.length <= 8) {
+      return `${limited.slice(0, 3)} (${limited.slice(3, 5)}) ${limited.slice(5)}`;
+    } else if (limited.length <= 10) {
+      return `${limited.slice(0, 3)} (${limited.slice(3, 5)}) ${limited.slice(5, 8)}-${limited.slice(8)}`;
+    } else {
+      return `${limited.slice(0, 3)} (${limited.slice(3, 5)}) ${limited.slice(5, 8)}-${limited.slice(8, 10)}-${limited.slice(10, 12)}`;
+    }
+  };
+
+  const handlePhoneChange = (text) => {
+    const formatted = formatPhoneNumber(text);
+    setFormData({ ...formData, phoneNumber: formatted });
+  };
+
   const handleRegister = async () => {
     Keyboard.dismiss();
     
@@ -180,7 +213,7 @@ export default function Registration() {
       
       showToast('Registration successful! Please wait for approval.', 'success');
       
-      // Redirect to login after delay, NO auto-login
+      // Redirect to login after delay
       setTimeout(() => {
         router.replace('/login');
       }, 2000);
@@ -238,6 +271,8 @@ export default function Registration() {
           borderWidth: 1.5,
           borderColor: '#334155',
         }}
+        accessibilityLabel="Go back"
+        accessibilityRole="button"
       >
         <ArrowLeft color="#f1f5f9" size={24} />
       </TouchableOpacity>
@@ -276,7 +311,7 @@ export default function Registration() {
           contentContainerStyle={{ 
             paddingHorizontal: 24,
             paddingTop: insets.top + 80,
-            paddingBottom: Math.max(insets.bottom, 24) + 20,
+            paddingBottom: 100,
           }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -294,6 +329,17 @@ export default function Registration() {
           )}
 
           <InputField
+            inputRef={usernameRef}
+            icon={AtSign}
+            label="Username"
+            placeholder="Enter username (e.g., john_doe)"
+            value={formData.username}
+            onChangeText={(text) => setFormData({ ...formData, username: text })}
+            onSubmitEditing={() => nameRef.current?.focus()}
+            editable={!loading}
+          />
+
+          <InputField
             inputRef={nameRef}
             icon={User}
             label="Full Name"
@@ -308,10 +354,11 @@ export default function Registration() {
             inputRef={phoneRef}
             icon={Phone}
             label="Phone Number"
-            placeholder="+998 (90) 123-45-67"
+            placeholder="998 (90) 123-45-67"
             value={formData.phoneNumber}
-            onChangeText={(text) => setFormData({ ...formData, phoneNumber: text })}
+            onChangeText={handlePhoneChange}
             keyboardType="phone-pad"
+            maxLength={22}
             onSubmitEditing={() => passwordRef.current?.focus()}
             editable={!loading}
           />

@@ -181,7 +181,7 @@ export default function Home() {
               <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
                 <MapPin color="#64748b" size={12} />
                 <Text style={{ color: '#64748b', fontSize: 11, marginLeft: 4 }}>
-                  Yakkasaroy, Toshkent
+                  {user?.employeeAddress || "Not Available"}
                 </Text>
               </View>
             </View>
@@ -217,7 +217,7 @@ export default function Home() {
         contentContainerStyle={{ 
           paddingHorizontal: 20, 
           paddingTop: 8,
-          paddingBottom: insets.bottom + 16 
+          paddingBottom: 100 
         }}
         showsVerticalScrollIndicator={false}
       >

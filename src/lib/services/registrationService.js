@@ -8,6 +8,7 @@ export const registrationService = {
   async registerFieldAgent(registrationData) {
     try {
       const {
+        username,
         name,
         phoneNumber,
         password,
@@ -20,8 +21,13 @@ export const registrationService = {
       } = registrationData;
 
       // Validate required fields
-      if (!name || !phoneNumber || !password || !confirmPassword) {
+      if (!username || !name || !phoneNumber || !password || !confirmPassword) {
         throw new Error("Please fill all required fields");
+      }
+
+      // Validate username
+      if (username.trim().length < 3) {
+        throw new Error("Username must be at least 3 characters long");
       }
 
       // Validate password match
@@ -59,18 +65,25 @@ export const registrationService = {
         throw new Error("Employee address is required");
       }
 
-      // Format phone number (ensure it starts with +998)
-      let formattedPhone = phoneNumber.trim().replace(/[\s-()]/g, '');
-      if (!formattedPhone.startsWith('+')) {
-        if (formattedPhone.startsWith('998')) {
-          formattedPhone = '+' + formattedPhone;
-        } else {
-          formattedPhone = '+998' + formattedPhone;
-        }
+      // Format phone number - remove formatting and ensure proper format
+      let formattedPhone = phoneNumber.trim().replace(/[\s\-\(\)]/g, '');
+      
+      // Validate phone number length (should be 12 digits: 998XXXXXXXXX)
+      if (formattedPhone.length !== 12) {
+        throw new Error("Phone number must be 12 digits (998 + 9 digits)");
       }
+
+      // Ensure it starts with 998
+      if (!formattedPhone.startsWith('998')) {
+        throw new Error("Phone number must start with 998");
+      }
+
+      // Add + prefix
+      formattedPhone = '+' + formattedPhone;
 
       console.log('Sending registration request to:', `${API_URL}/auth/register-field-agent`);
       console.log('Request data:', {
+        username: username.trim(),
         name: name.trim(),
         phoneNumber: formattedPhone,
         pinfl: pinfl.trim(),
@@ -87,6 +100,7 @@ export const registrationService = {
           "Accept": "application/json"
         },
         body: JSON.stringify({
+          username: username.trim(),
           name: name.trim(),
           phoneNumber: formattedPhone,
           password,
@@ -96,7 +110,7 @@ export const registrationService = {
           passportIssueDate: passportIssueDate,
           passportIssuePlace: passportIssuePlace.trim(),
           employeeAddress: employeeAddress.trim(),
-          approved: false, // Explicitly request unapproved state
+          approved: false,
         }),
       });
 
@@ -127,29 +141,9 @@ export const registrationService = {
     }
   },
 
-  async autoLoginAfterRegistration(phoneNumber, password) {
+  async autoLoginAfterRegistration(username, password) {
     try {
-      // Auto-format phone number if it looks like one
-      let loginId = phoneNumber.trim();
-      
-      // Check if input is likely a phone number (contains mostly digits, maybe spaces or +)
-      const cleaned = loginId.replace(/[\s-()]/g, '');
-      const isNumeric = /^\+?\d+$/.test(cleaned);
-
-      if (isNumeric) {
-        if (!cleaned.startsWith('+')) {
-          if (cleaned.startsWith('998') && cleaned.length === 12) {
-            loginId = '+' + cleaned;
-          } else if (cleaned.length === 9) {
-            loginId = '+998' + cleaned;
-          }
-        } else {
-            // It has +, ensure no spaces in the final string
-            loginId = cleaned;
-        }
-      }
-
-      console.log('Attempting auto-login with:', loginId);
+      console.log('Attempting auto-login with:', username);
 
       const response = await fetch(`${API_URL}/auth/login`, {
         method: "POST",
@@ -158,7 +152,7 @@ export const registrationService = {
           "Accept": "application/json"
         },
         body: JSON.stringify({ 
-          username: loginId, 
+          username: username.trim(), 
           password 
         }),
       });

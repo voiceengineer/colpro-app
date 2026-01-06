@@ -257,6 +257,7 @@ export default function Cases() {
         page: pageParam, 
         limit: 20,
         search: debouncedSearch.trim(),
+        agentId: user?.id,
       };
       const response = await casesService.getCases(params);
 
