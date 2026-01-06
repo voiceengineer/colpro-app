@@ -12,9 +12,9 @@ import * as Clipboard from 'expo-clipboard';
 import { casesService } from '../../lib/services/casesService';
 import { useAuth } from '../../lib/authContext';
 import { useDebounce } from '../../hooks/useDebounce';
-import CaseDetailsModal from '../../components/cases/CaseDetailsModal';
 
-const CaseCard = React.memo(({ item, handleCasePress }) => {
+const CaseCard = React.memo(({ item, onPress }) => {
+  const router = useRouter();
   const statusColor = item.status?.color || '#64748b';
 
   const getPriorityColor = (priority) => {
@@ -61,10 +61,14 @@ Status: ${item.status?.description || 'N/A'}
       Alert.alert('Error', 'Failed to copy case data');
     }
   };
+
+  const handlePress = () => {
+    router.push(`/cases/${item.id}`);
+  };
   
   return (
     <TouchableOpacity
-      onPress={() => handleCasePress(item.id)}
+      onPress={handlePress}
       style={{
         backgroundColor: '#1e293b',
         borderRadius: 12,
@@ -238,9 +242,6 @@ export default function Cases() {
   const [searchInput, setSearchInput] = useState('');
   const debouncedSearch = useDebounce(searchInput, 500);
 
-  const [selectedCaseId, setSelectedCaseId] = useState(null);
-  const [modalVisible, setModalVisible] = useState(false);
-
   const {
     data,
     error,
@@ -299,20 +300,6 @@ export default function Cases() {
     if (hasNextPage && !isFetchingNextPage) {
       fetchNextPage();
     }
-  };
-
-  const handleCasePress = (caseId) => {
-    setSelectedCaseId(caseId);
-    setModalVisible(true);
-  };
-
-  const handleModalClose = () => {
-    setModalVisible(false);
-    setSelectedCaseId(null);
-  };
-
-  const handleCaseUpdate = () => {
-    queryClient.invalidateQueries(['cases']);
   };
 
   const renderFooter = () => {
@@ -390,7 +377,7 @@ export default function Cases() {
       ) : (
         <FlatList
           data={cases}
-          renderItem={({ item }) => <CaseCard item={item} handleCasePress={handleCasePress} />}
+          renderItem={({ item }) => <CaseCard item={item} />}
           keyExtractor={(item) => item.id.toString()}
           contentContainerStyle={{ 
             paddingHorizontal: 24, 
@@ -410,13 +397,6 @@ export default function Cases() {
           ListEmptyComponent={renderEmpty}
         />
       )}
-
-      <CaseDetailsModal
-        visible={modalVisible}
-        caseId={selectedCaseId}
-        onClose={handleModalClose}
-        onUpdate={handleCaseUpdate}
-      />
     </View>
   );
 }

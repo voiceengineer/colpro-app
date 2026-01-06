@@ -297,7 +297,7 @@ export default function Home() {
               onPress={() => {
                 setActiveView('cases');
                 if (casesCount > 0) {
-                  setTimeout(() => router.push('/(tabs)/cases'), 200);
+                  setTimeout(() => router.push('/cases'), 200);
                 }
               }}
             />
