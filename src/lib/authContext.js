@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { apiService } from './apiService';
+import { authService } from './services/authService';
 import { biometricService } from './biometricService';
 
 const AuthContext = createContext(null);
@@ -40,8 +40,8 @@ export function AuthProvider({ children }) {
 
   const checkAuth = async () => {
     try {
-      const token = await apiService.getToken();
-      const userData = await apiService.getUser();
+      const token = await authService.getToken();
+      const userData = await authService.getUser();
       
       if (token && userData) {
         setIsAuthenticated(true);
@@ -74,7 +74,7 @@ export function AuthProvider({ children }) {
 
   const login = async (username, password) => {
     try {
-      const { token, user: userData } = await apiService.login(username, password);
+      const { token, user: userData } = await authService.login(username, password);
       
       if (userData) {
         setIsAuthenticated(true);
@@ -102,47 +102,45 @@ export function AuthProvider({ children }) {
 
   const loginWithBiometric = async () => {
     try {
-      const token = await apiService.getToken();
-      
-      if (!token) {
-        throw new Error('No saved session found. Please login with username and password first.');
+      // Check if biometric is enabled first
+      const isEnabled = await biometricService.isBiometricEnabled();
+      if (!isEnabled) {
+        throw new Error('Biometric login is not enabled');
       }
 
-      const authenticated = await biometricService.authenticate();
-      
-      if (!authenticated) {
-        throw new Error('Biometric authentication was cancelled or failed');
+      // Get stored credentials
+      const credentials = await biometricService.getCredentials();
+      if (!credentials || !credentials.username || !credentials.password) {
+        // If enabled but no credentials, we might need to ask user to login manually once to repair
+        await biometricService.disableBiometric();
+        throw new Error('Biometric credentials missing. Please login with password to re-enable.');
       }
 
-      const userData = await apiService.getUser();
+      const { success, error } = await biometricService.authenticate();
       
-      if (userData) {
-        setIsAuthenticated(true);
-        setUser(userData);
-        setUserRole(userData.role?.name || userData.roleName || 'User');
-        setPermissions(userData.permissions || []);
-        
-        return { success: true };
+      if (!success) {
+        throw new Error(error || 'Biometric authentication failed');
       }
 
-      throw new Error('Session expired. Please login again.');
+      // Perform actual login with stored credentials
+      return await login(credentials.username, credentials.password);
     } catch (error) {
       throw error;
     }
   };
 
-  const enableBiometricLogin = async () => {
+  const enableBiometricLogin = async (username, password) => {
     try {
-      const canAuthenticate = await biometricService.authenticate();
-      if (!canAuthenticate) {
+      const { success } = await biometricService.authenticate('Confirm to enable biometric login');
+      if (!success) {
         return false;
       }
       
-      const success = await biometricService.enableBiometric();
-      if (success) {
+      const enabled = await biometricService.enableBiometric(username, password);
+      if (enabled) {
         setBiometricEnabled(true);
       }
-      return success;
+      return enabled;
     } catch (error) {
       console.error('Enable biometric error:', error);
       return false;
@@ -164,21 +162,7 @@ export function AuthProvider({ children }) {
 
   const logout = async () => {
     try {
-      const token = await apiService.getToken();
-      if (token) {
-        try {
-          await fetch('https://dev.collpro.uz/api/auth/logout', {
-            method: "POST",
-            headers: {
-              "Authorization": `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-          });
-        } catch (e) {
-          console.log('Logout API call failed');
-        }
-      }
-      
+      await authService.logout();
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
@@ -188,7 +172,7 @@ export function AuthProvider({ children }) {
 
   const refreshUser = async () => {
     try {
-      const userData = await apiService.getUser();
+      const userData = await authService.getUser();
       if (userData) {
         setUser(userData);
         setUserRole(userData.role?.name || userData.roleName || 'User');

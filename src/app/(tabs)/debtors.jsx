@@ -8,7 +8,7 @@ import {
   Search, Filter, Plus, User, Phone, DollarSign,
   ChevronRight, Users, Activity
 } from 'lucide-react-native';
-import { apiService } from '../../lib/apiService';
+import { debtorsService } from '../../lib/services/debtorsService';
 import { useDebounce } from '../../hooks/useDebounce';
 
 const formatCurrency = (amount) => {
@@ -124,7 +124,7 @@ export default function Debtors() {
 
   const { data: debtors = [], isLoading, isRefetching, error, refetch } = useQuery({
     queryKey: ['debtors', debouncedSearchQuery, filterStatus],
-    queryFn: () => apiService.getDebtors({ search: debouncedSearchQuery, status: filterStatus }),
+    queryFn: () => debtorsService.getDebtors({ search: debouncedSearchQuery, status: filterStatus }),
     onError: (err) => {
       if (err.message === 'UNAUTHORIZED') {
         Alert.alert('Session Expired', 'Please login again', [{ text: 'OK', onPress: () => router.replace('/login') }]);

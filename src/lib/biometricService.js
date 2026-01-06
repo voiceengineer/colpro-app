@@ -2,6 +2,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
 
 const BIOMETRIC_ENABLED_KEY = 'biometric_enabled';
+const BIOMETRIC_CREDENTIALS_KEY = 'biometric_credentials';
 
 export const biometricService = {
   async isAvailable() {
@@ -16,19 +17,19 @@ export const biometricService = {
     }
   },
 
-  async authenticate() {
+  async authenticate(promptMessage = 'Authenticate to login') {
     try {
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Authenticate to login',
+        promptMessage,
         fallbackLabel: 'Use passcode',
         cancelLabel: 'Cancel',
         disableDeviceFallback: false,
         requireConfirmation: false,
       });
 
-      return result.success;
+      return { success: result.success, error: result.error };
     } catch (error) {
-      return false;
+      return { success: false, error: error.message };
     }
   },
 
@@ -41,9 +42,12 @@ export const biometricService = {
     }
   },
 
-  async enableBiometric() {
+  async enableBiometric(username, password) {
     try {
       await SecureStore.setItemAsync(BIOMETRIC_ENABLED_KEY, 'true');
+      if (username && password) {
+        await this.storeCredentials(username, password);
+      }
       return true;
     } catch (error) {
       return false;
@@ -53,6 +57,37 @@ export const biometricService = {
   async disableBiometric() {
     try {
       await SecureStore.deleteItemAsync(BIOMETRIC_ENABLED_KEY);
+      await this.deleteCredentials();
+      return true;
+    } catch (error) {
+      return false;
+    }
+  },
+
+  async storeCredentials(username, password) {
+    try {
+      await SecureStore.setItemAsync(
+        BIOMETRIC_CREDENTIALS_KEY, 
+        JSON.stringify({ username, password })
+      );
+      return true;
+    } catch (error) {
+      return false;
+    }
+  },
+
+  async getCredentials() {
+    try {
+      const credentials = await SecureStore.getItemAsync(BIOMETRIC_CREDENTIALS_KEY);
+      return credentials ? JSON.parse(credentials) : null;
+    } catch (error) {
+      return null;
+    }
+  },
+
+  async deleteCredentials() {
+    try {
+      await SecureStore.deleteItemAsync(BIOMETRIC_CREDENTIALS_KEY);
       return true;
     } catch (error) {
       return false;

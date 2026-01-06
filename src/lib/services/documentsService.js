@@ -224,6 +224,31 @@ export const documentsService = {
     }
   },
 
+  async clearLocalUploads(caseId) {
+    try {
+      const key = `case_uploads_${caseId}`;
+      await SecureStore.deleteItemAsync(key);
+    } catch (error) {
+      console.error('Failed to clear local uploads:', error);
+    }
+  },
+
+  async replaceLocalWithServer(caseId, fileName, serverResponse) {
+    try {
+      const key = `case_uploads_${caseId}`;
+      const data = await SecureStore.getItemAsync(key);
+      if (!data) return;
+      
+      const uploads = JSON.parse(data);
+      const filtered = uploads.filter(u => u.fileName !== fileName);
+      
+      await SecureStore.setItemAsync(key, JSON.stringify(filtered));
+      console.log('Replaced local upload with server version:', fileName);
+    } catch (error) {
+      console.error('Failed to replace local upload:', error);
+    }
+  },
+
   // Build multiple possible image URLs
   buildImageUrls(doc) {
     if (!doc) return [];

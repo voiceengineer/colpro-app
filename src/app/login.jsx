@@ -8,8 +8,8 @@ import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { 
-  Lock, Eye, EyeOff, ArrowRight, ArrowLeft, AlertCircle, 
-  User, X, CheckCircle, Fingerprint, ScanFace, UserPlus
+  Lock, Eye, EyeOff, ArrowRight, AlertCircle, 
+  User, X, CheckCircle, Fingerprint, ScanFace, ArrowLeft
 } from 'lucide-react-native';
 import { useAuth } from '../lib/authContext';
 
@@ -25,6 +25,7 @@ export default function Login() {
     biometricType 
   } = useAuth();
   
+  const [isLanding, setIsLanding] = useState(true);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -65,7 +66,7 @@ export default function Login() {
     try {
       await loginWithBiometric();
       showToast('Login successful', 'success');
-      setTimeout(() => router.replace('/(tabs)/index'), 1000);
+      setTimeout(() => router.replace('/(tabs)'), 1000);
     } catch (error) {
       showToast(error?.message || 'Authentication failed');
     } finally {
@@ -93,13 +94,13 @@ export default function Login() {
         setLoading(false);
         Alert.alert(
           `Enable ${biometricType}?`,
-          `Login faster and securely with ${biometricType}`,
+          `Login faster and securely with ${biometricType} next time.`,
           [
             {
               text: 'Skip',
               onPress: () => {
                 showToast('Login successful', 'success');
-                setTimeout(() => router.replace('/(tabs)/index'), 500);
+                setTimeout(() => router.replace('/(tabs)'), 500);
               },
               style: 'cancel'
             },
@@ -107,7 +108,7 @@ export default function Login() {
               text: `Enable ${biometricType}`,
               onPress: async () => {
                 try {
-                  const success = await enableBiometricLogin();
+                  const success = await enableBiometricLogin(username, password);
                   if (success) {
                     showToast(`${biometricType} enabled successfully`, 'success');
                   } else {
@@ -116,7 +117,7 @@ export default function Login() {
                 } catch (error) {
                   showToast('Error enabling biometric', 'error');
                 }
-                setTimeout(() => router.replace('/(tabs)/index'), 1000);
+                setTimeout(() => router.replace('/(tabs)'), 1000);
               }
             }
           ],
@@ -125,7 +126,7 @@ export default function Login() {
       } else {
         showToast('Login successful', 'success');
         setLoading(false);
-        setTimeout(() => router.replace('/(tabs)/index'), 1000);
+        setTimeout(() => router.replace('/(tabs)'), 1000);
       }
     } catch (error) {
       showToast(error?.message || 'Login failed');
@@ -137,11 +138,89 @@ export default function Login() {
   const showBiometricButton = biometricAvailable === true && biometricEnabled === true;
   const isFaceID = biometricType === 'Face ID';
 
+  const BackgroundGradients = () => (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <View style={{
+        position: 'absolute',
+        top: -100,
+        right: -100,
+        width: 300,
+        height: 300,
+        backgroundColor: '#3b82f6',
+        opacity: 0.1,
+        borderRadius: 150,
+      }} />
+      <View style={{
+        position: 'absolute',
+        bottom: 100,
+        left: -80,
+        width: 250,
+        height: 250,
+        backgroundColor: '#8b5cf6',
+        opacity: 0.08,
+        borderRadius: 125,
+      }} />
+    </View>
+  );
+
+  if (isLanding) {
+    return (
+      <View style={styles.container}>
+        <StatusBar style="light" />
+        <BackgroundGradients />
+
+        <Animated.View style={[
+          styles.landingContent,
+          { opacity: fadeAnim, paddingTop: insets.top + 100, paddingBottom: insets.bottom + 40 }
+        ]}>
+          <View style={styles.landingHeader}>
+            <View style={styles.landingLogoContainer}>
+              <Lock color="#ffffff" size={48} strokeWidth={2} />
+            </View>
+            <Text style={styles.landingTitle}>Coll Pro</Text>
+            <Text style={styles.landingSubtitle}>Secure Field Agent Portal</Text>
+          </View>
+
+          <View style={styles.landingButtons}>
+            <TouchableOpacity
+              onPress={() => setIsLanding(false)}
+              style={styles.landingButtonPrimary}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.landingButtonTextPrimary}>Login</Text>
+              <ArrowRight color="#ffffff" size={20} strokeWidth={2.5} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => router.push('/register')}
+              style={styles.landingButtonSecondary}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.landingButtonTextSecondary}>Create Account</Text>
+            </TouchableOpacity>
+          </View>
+          
+          <Text style={styles.versionText}>Version 1.0.0</Text>
+        </Animated.View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
+      <BackgroundGradients />
       
-     
+      {/* Back Button */}
+      <TouchableOpacity
+        onPress={() => {
+          setIsLanding(true);
+          Keyboard.dismiss();
+        }}
+        style={[styles.backButton, { top: insets.top + 20 }]}
+      >
+        <ArrowLeft color="#f1f5f9" size={24} />
+      </TouchableOpacity>
 
       {toast.show && (
         <Animated.View style={[
@@ -205,7 +284,7 @@ export default function Login() {
                   <Fingerprint color="#ffffff" size={24} strokeWidth={2.5} />
                 )}
                 <Text style={styles.biometricButtonText}>
-                  Biometric Login
+                  Login with {biometricType}
                 </Text>
               </TouchableOpacity>
 
@@ -219,12 +298,12 @@ export default function Login() {
 
           <View style={styles.formContainer}>
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Username</Text>
+              <Text style={styles.label}>Username or Phone</Text>
               <View style={styles.inputContainer}>
                 <User color="#64748b" size={20} />
                 <TextInput
                   style={styles.input}
-                  placeholder="Enter your username"
+                  placeholder="Username or +998..."
                   placeholderTextColor="#64748b"
                   value={username}
                   onChangeText={setUsername}
@@ -294,33 +373,6 @@ export default function Login() {
               )}
             </TouchableOpacity>
           </View>
-
-          {!keyboardVisible && (
-            <>
-              {/* Register Link */}
-              <View style={styles.registerContainer}>
-                <Text style={styles.registerText}>Don't have an account? </Text>
-                <TouchableOpacity 
-                  onPress={() => router.push('/register')}
-                  disabled={loading}
-                  accessibilityLabel="Go to registration"
-                >
-                  <Text style={styles.registerLink}>Create Account</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Divider */}
-              <View style={styles.bottomDivider}>
-                <View style={styles.dividerLine} />
-              </View>
-
-              {/* Footer */}
-              <View style={styles.footer}>
-                <Lock color="#64748b" size={16} />
-                <Text style={styles.footerText}>Secure connection</Text>
-              </View>
-            </>
-          )}
         </Animated.View>
       </KeyboardAvoidingView>
     </View>
@@ -331,6 +383,84 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0f172a',
+  },
+  landingContent: {
+    flex: 1,
+    paddingHorizontal: 32,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  landingHeader: {
+    alignItems: 'center',
+    width: '100%',
+  },
+  landingLogoContainer: {
+    backgroundColor: '#2563eb',
+    borderRadius: 30,
+    width: 100,
+    height: 100,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 32,
+    shadowColor: '#2563eb',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  landingTitle: {
+    color: '#ffffff',
+    fontSize: 36,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  landingSubtitle: {
+    color: '#94a3b8',
+    fontSize: 18,
+    textAlign: 'center',
+  },
+  landingButtons: {
+    width: '100%',
+    gap: 16,
+  },
+  landingButtonPrimary: {
+    backgroundColor: '#2563eb',
+    borderRadius: 16,
+    paddingVertical: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#2563eb',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  landingButtonTextPrimary: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginRight: 12,
+  },
+  landingButtonSecondary: {
+    backgroundColor: '#1e293b',
+    borderRadius: 16,
+    paddingVertical: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#334155',
+  },
+  landingButtonTextSecondary: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  versionText: {
+    color: '#475569',
+    fontSize: 12,
+    marginBottom: 20,
   },
   backButton: {
     position: 'absolute',
@@ -506,37 +636,5 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.6,
-  },
-  registerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 24,
-  },
-  registerText: {
-    color: '#94a3b8',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  registerLink: {
-    color: '#3b82f6',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  bottomDivider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 16,
-  },
-  footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  footerText: {
-    color: '#64748b',
-    fontSize: 13,
-    marginLeft: 8,
   },
 });

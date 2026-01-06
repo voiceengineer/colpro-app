@@ -7,7 +7,7 @@ import {
   MapPin, Bell, Search, FileText, Briefcase, Zap, TrendingUp, CheckCircle, Clock, XCircle
 } from 'lucide-react-native';
 import { useAuth } from '../../lib/authContext';
-import { apiService } from '../../lib/apiService';
+import { casesService } from '../../lib/services/casesService';
 
 export default function Home() {
   const insets = useSafeAreaInsets();
@@ -27,7 +27,7 @@ export default function Home() {
   const fetchUserCasesCount = async () => {
     try {
       setCasesLoading(true);
-      const count = await apiService.getUserCasesCount(user.id);
+      const count = await casesService.getUserCasesCount(user.id);
       setCasesCount(count);
     } catch (error) {
       if (error.message === 'UNAUTHORIZED' || error.message.includes('401')) {

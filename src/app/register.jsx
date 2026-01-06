@@ -101,7 +101,6 @@ const InputField = React.memo(({
 export default function Registration() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { checkAuth } = useAuth();
   
   // Input refs for navigation
   const nameRef = useRef(null);
@@ -177,24 +176,14 @@ export default function Registration() {
     
     setLoading(true);
     try {
-      const result = await registrationService.registerFieldAgent(formData);
+      await registrationService.registerFieldAgent(formData);
       
-      showToast(result.message, 'success');
+      showToast('Registration successful! Please wait for approval.', 'success');
       
-      // Auto login after 1.5 seconds
-      setTimeout(async () => {
-        try {
-          await registrationService.autoLoginAfterRegistration(
-            formData.phoneNumber,
-            formData.password
-          );
-          await checkAuth();
-          router.replace('/(tabs)/index');
-        } catch (error) {
-          // If auto-login fails, redirect to login page
-          setTimeout(() => router.replace('/login'), 500);
-        }
-      }, 1500);
+      // Redirect to login after delay, NO auto-login
+      setTimeout(() => {
+        router.replace('/login');
+      }, 2000);
       
     } catch (error) {
       showToast(error?.message || 'Registration failed');

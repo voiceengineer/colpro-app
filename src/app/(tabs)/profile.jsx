@@ -8,7 +8,6 @@ import {
   Globe, LogOut, Phone, Mail, Hash, Shield, CreditCard
 } from 'lucide-react-native';
 import { useAuth } from '../../lib/authContext';
-import { apiService } from '../../lib/apiService';
 
 export default function Profile() {
   const insets = useSafeAreaInsets();

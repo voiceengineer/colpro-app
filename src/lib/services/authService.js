@@ -7,10 +7,30 @@ const USER_KEY = "user_data";
 export const authService = {
   async login(username, password) {
     try {
+      // Auto-format phone number if it looks like one
+      let loginId = username.trim();
+      
+      // Check if input is likely a phone number (contains mostly digits, maybe spaces or +)
+      const cleaned = loginId.replace(/[\s-()]/g, '');
+      const isNumeric = /^\+?\d+$/.test(cleaned);
+
+      if (isNumeric) {
+        if (!cleaned.startsWith('+')) {
+          if (cleaned.startsWith('998') && cleaned.length === 12) {
+            loginId = '+' + cleaned;
+          } else if (cleaned.length === 9) {
+            loginId = '+998' + cleaned;
+          }
+        } else {
+            // It has +, ensure no spaces in the final string
+            loginId = cleaned;
+        }
+      }
+
       const response = await fetch(`${API_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username: loginId, password }),
       });
 
       const data = await response.json();
@@ -24,6 +44,13 @@ export const authService = {
 
       if (!token) {
         throw new Error("Token missing in response");
+      }
+
+      // Business rule: Field agents must be approved to login
+      if (user && (user.role?.slug === 'field-agent' || user.role?.level === 4)) {
+        if (!user.approved) {
+          throw new Error("Your account is pending approval. Please contact administrator.");
+        }
       }
 
       await SecureStore.setItemAsync(TOKEN_KEY, token);

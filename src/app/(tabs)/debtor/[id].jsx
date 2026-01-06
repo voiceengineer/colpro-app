@@ -12,7 +12,7 @@ import {
   User, FileText, CreditCard, MessageCircle, CheckCircle, XCircle, Eye,
   TrendingUp, Activity, Navigation,
 } from "lucide-react-native";
-import { apiService } from "@/lib/apiService";
+import { debtorsService } from "@/lib/services/debtorsService";
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat("uz-UZ", {
@@ -97,7 +97,7 @@ export default function DebtorDetails() {
 
   const { data: debtor, isLoading, isRefetching, error, refetch } = useQuery({
     queryKey: ['debtor', id],
-    queryFn: () => apiService.getDebtorById(id),
+    queryFn: () => debtorsService.getDebtorById(id),
     enabled: !!id,
     onError: (err) => {
        if (err.message === 'UNAUTHORIZED') {
