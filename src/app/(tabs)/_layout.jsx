@@ -21,12 +21,12 @@ export default function TabLayout() {
           // Android aur iOS dono pe insets add kiye hain
           height: Platform.OS === 'ios' 
             ? 65 + insets.bottom 
-            : 70 + insets.bottom, 
+            : 55 + insets.bottom, 
             
           // Padding bottom se content ko upar push karega taaki 
           // navigation bar ke peeche text/icon na chupe
-          paddingBottom: insets.bottom > 0 ? insets.bottom : 10,
-          paddingTop: 10,
+          paddingBottom: insets.bottom > 0 ? insets.bottom : 4,
+          paddingTop: 4,
           
           position: 'absolute',
           bottom: 0,

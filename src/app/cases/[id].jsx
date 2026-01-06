@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { 
   View, Text, TouchableOpacity, ScrollView, 
-  ActivityIndicator, Alert, Image, Dimensions, RefreshControl
+  ActivityIndicator, Alert, Image, Dimensions, RefreshControl,
+  Modal, FlatList
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -10,7 +11,7 @@ import {
   ArrowLeft, User, Phone, MapPin, CreditCard, 
   Calendar, DollarSign, AlertCircle, FileText,
   Package, Receipt, Mic, Copy, CheckCircle,
-  Eye, EyeOff
+  Eye, EyeOff, X, Download, Image as ImageIcon
 } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
@@ -23,6 +24,7 @@ const TABS = [
   { id: 'products', label: 'Products', icon: Package },
   { id: 'payments', label: 'Payments', icon: Receipt },
   { id: 'documents', label: 'Docs', icon: FileText },
+  { id: 'photos', label: 'Photos', icon: ImageIcon },
   { id: 'recordings', label: 'Audio', icon: Mic },
 ];
 
@@ -221,63 +223,62 @@ export default function CaseDetailsPage() {
       </View>
 
       {/* Button-Style Tabs */}
-    <ScrollView 
-  horizontal 
-  showsHorizontalScrollIndicator={false}
-  style={{ 
-    backgroundColor: '#1e293b',
-    borderBottomWidth: 1,
-    borderBottomColor: '#334155',
-    maxHeight: 60, 
-  }}
-  contentContainerStyle={{ 
-    paddingHorizontal: 16, 
-    paddingVertical: 10, 
-    gap: 10 
-  }}
->
-  {TABS.map((tab) => {
-    const Icon = tab.icon;
-    const isActive = activeTab === tab.id;
-    return (
-      <TouchableOpacity
-        key={tab.id}
-        onPress={() => setActiveTab(tab.id)}
-        style={{
-          backgroundColor: isActive ? '#3b82f6' : '#0f172a',
-          paddingHorizontal: 10, 
-             
-          borderRadius: 8,       
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 6,
-          borderWidth: 1,
-          borderColor: isActive ? '#3b82f6' : '#334155',
-          shadowColor: isActive ? '#3b82f6' : '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: isActive ? 0.3 : 0,
-          shadowRadius: 4,
-          elevation: isActive ? 4 : 0,
+      <ScrollView 
+        horizontal 
+        showsHorizontalScrollIndicator={false}
+        style={{ 
+          backgroundColor: '#1e293b',
+          borderBottomWidth: 1,
+          borderBottomColor: '#334155',
+          maxHeight: 60, 
         }}
-        accessibilityLabel={`${tab.label} tab`}
-        accessibilityRole="button"
-        accessibilityState={{ selected: isActive }}
+        contentContainerStyle={{ 
+          paddingHorizontal: 16, 
+          paddingVertical: 10, 
+          gap: 10 
+        }}
       >
-        <Icon 
-          color={isActive ? '#ffffff' : '#64748b'} 
-          size={18} // Icon size 20 se 18 kiya (Optional, better fit ke liye)
-        />
-        <Text style={{ 
-          color: isActive ? '#ffffff' : '#64748b',
-          fontSize: 14, // Font size 15 se 14 kiya
-          fontWeight: isActive ? '700' : '600',
-        }}>
-          {tab.label}
-        </Text>
-      </TouchableOpacity>
-    );
-  })}
-</ScrollView>
+        {TABS.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <TouchableOpacity
+              key={tab.id}
+              onPress={() => setActiveTab(tab.id)}
+              style={{
+                backgroundColor: isActive ? '#3b82f6' : '#0f172a',
+                paddingHorizontal: 10, 
+                borderRadius: 8,       
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
+                borderWidth: 1,
+                borderColor: isActive ? '#3b82f6' : '#334155',
+                shadowColor: isActive ? '#3b82f6' : '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: isActive ? 0.3 : 0,
+                shadowRadius: 4,
+                elevation: isActive ? 4 : 0,
+              }}
+              accessibilityLabel={`${tab.label} tab`}
+              accessibilityRole="button"
+              accessibilityState={{ selected: isActive }}
+            >
+              <Icon 
+                color={isActive ? '#ffffff' : '#64748b'} 
+                size={18}
+              />
+              <Text style={{ 
+                color: isActive ? '#ffffff' : '#64748b',
+                fontSize: 14,
+                fontWeight: isActive ? '700' : '600',
+              }}>
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
 
       {/* Content */}
       <ScrollView 
@@ -316,6 +317,10 @@ export default function CaseDetailsPage() {
         
         {activeTab === 'documents' && (
           <DocumentsTab caseId={id} />
+        )}
+
+        {activeTab === 'photos' && (
+          <PhotosTab caseId={id} />
         )}
         
         {activeTab === 'recordings' && (
@@ -744,6 +749,8 @@ function PaymentsTab({ caseId, account, formatCurrency, formatDate }) {
 function DocumentsTab({ caseId }) {
   const [documents, setDocuments] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
+  const [previewDoc, setPreviewDoc] = React.useState(null);
+  const [loadingPreview, setLoadingPreview] = React.useState(false);
 
   React.useEffect(() => {
     fetchDocuments();
@@ -752,11 +759,48 @@ function DocumentsTab({ caseId }) {
   const fetchDocuments = async () => {
     try {
       const docs = await casesService.getCaseDocuments(caseId);
-      setDocuments(docs);
+      // Filter out image files (they'll be shown in Photos tab)
+      const nonImageDocs = Array.isArray(docs) ? docs.filter(doc => {
+        const ext = doc.name?.toLowerCase().split('.').pop();
+        return !['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(ext);
+      }) : [];
+      setDocuments(nonImageDocs);
     } catch (error) {
       console.error('Failed to fetch documents:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDocumentPress = async (doc) => {
+    setLoadingPreview(true);
+    try {
+      const details = await casesService.getDocumentDetails(caseId, doc.id);
+      setPreviewDoc({ ...doc, ...details });
+    } catch (error) {
+      Alert.alert('Error', 'Failed to load document preview');
+    } finally {
+      setLoadingPreview(false);
+    }
+  };
+
+  const closePreview = () => {
+    if (previewDoc?.url) {
+      URL.revokeObjectURL(previewDoc.url);
+    }
+    setPreviewDoc(null);
+  };
+
+  const getFileIcon = (fileName) => {
+    const ext = fileName?.toLowerCase().split('.').pop();
+    switch(ext) {
+      case 'pdf': return '📄';
+      case 'doc':
+      case 'docx': return '📝';
+      case 'xls':
+      case 'xlsx': return '📊';
+      case 'txt': return '📃';
+      default: return '📎';
     }
   };
 
@@ -796,7 +840,8 @@ function DocumentsTab({ caseId }) {
 
       {documents.map((doc, index) => (
         <TouchableOpacity
-          key={index}
+          key={doc.id || index}
+          onPress={() => handleDocumentPress(doc)}
           style={{ 
             backgroundColor: '#1e293b', 
             borderRadius: 10, 
@@ -810,8 +855,10 @@ function DocumentsTab({ caseId }) {
           accessibilityLabel={`Document: ${doc.name || `Document ${index + 1}`}`}
           accessibilityRole="button"
         >
-          <FileText color="#3b82f6" size={24} />
-          <View style={{ flex: 1, marginLeft: 12 }}>
+          <Text style={{ fontSize: 32, marginRight: 12 }}>
+            {getFileIcon(doc.name)}
+          </Text>
+          <View style={{ flex: 1 }}>
             <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '500' }}>
               {doc.name || `Document ${index + 1}`}
             </Text>
@@ -819,8 +866,259 @@ function DocumentsTab({ caseId }) {
               {doc.type || doc.mimeType || 'Unknown'} {doc.size ? `• ${doc.size}` : ''}
             </Text>
           </View>
+          <Download color="#3b82f6" size={20} />
         </TouchableOpacity>
       ))}
+
+      {/* Document Preview Modal */}
+      <Modal
+        visible={!!previewDoc}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={closePreview}
+      >
+        <View style={{ 
+          flex: 1, 
+          backgroundColor: 'rgba(0,0,0,0.95)',
+          justifyContent: 'center',
+          alignItems: 'center'
+        }}>
+          <View style={{ 
+            position: 'absolute',
+            top: 40,
+            right: 20,
+            zIndex: 10
+          }}>
+            <TouchableOpacity
+              onPress={closePreview}
+              style={{
+                backgroundColor: '#1e293b',
+                padding: 12,
+                borderRadius: 8,
+              }}
+              accessibilityLabel="Close preview"
+              accessibilityRole="button"
+            >
+              <X color="#ffffff" size={24} />
+            </TouchableOpacity>
+          </View>
+
+          {loadingPreview ? (
+            <ActivityIndicator size="large" color="#3b82f6" />
+          ) : (
+            <View style={{ width: '90%', height: '80%', justifyContent: 'center', alignItems: 'center' }}>
+              <Text style={{ color: '#ffffff', fontSize: 16, marginBottom: 20 }}>
+                {previewDoc?.name}
+              </Text>
+              <Text style={{ color: '#64748b', fontSize: 14 }}>
+                Document preview not available
+              </Text>
+              <Text style={{ color: '#64748b', fontSize: 12, marginTop: 8 }}>
+                Please download the file to view
+              </Text>
+            </View>
+          )}
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+// NEW: Photos Tab Component
+function PhotosTab({ caseId }) {
+  const [photos, setPhotos] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [selectedPhoto, setSelectedPhoto] = React.useState(null);
+  const [loadingPhotos, setLoadingPhotos] = React.useState({});
+
+  React.useEffect(() => {
+    fetchPhotos();
+  }, [caseId]);
+
+  const fetchPhotos = async () => {
+    try {
+      const docs = await casesService.getCaseDocuments(caseId);
+      // Filter only image files
+      const imageDocs = Array.isArray(docs) ? docs.filter(doc => {
+        const ext = doc.name?.toLowerCase().split('.').pop();
+        return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(ext);
+      }) : [];
+      
+      setPhotos(imageDocs);
+      
+      // Load image URLs
+      imageDocs.forEach(async (photo) => {
+        setLoadingPhotos(prev => ({ ...prev, [photo.id]: true }));
+        try {
+          const details = await casesService.getDocumentDetails(caseId, photo.id);
+          setPhotos(prevPhotos => 
+            prevPhotos.map(p => 
+              p.id === photo.id ? { ...p, url: details.url } : p
+            )
+          );
+        } catch (error) {
+          console.error('Failed to load photo:', error);
+        } finally {
+          setLoadingPhotos(prev => ({ ...prev, [photo.id]: false }));
+        }
+      });
+    } catch (error) {
+      console.error('Failed to fetch photos:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openFullScreen = (photo) => {
+    setSelectedPhoto(photo);
+  };
+
+  const closeFullScreen = () => {
+    setSelectedPhoto(null);
+  };
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
+        <ActivityIndicator size="large" color="#3b82f6" />
+      </View>
+    );
+  }
+
+  if (photos.length === 0) {
+    return (
+      <View>
+        <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>
+          Photos
+        </Text>
+        
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 60 }}>
+          <ImageIcon color="#64748b" size={48} />
+          <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600', marginTop: 16 }}>
+            No Photos
+          </Text>
+          <Text style={{ color: '#64748b', fontSize: 14, marginTop: 8 }}>
+            No photos have been uploaded for this case
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  const imageSize = (width - 60) / 3; // 3 columns with padding
+
+  return (
+    <View>
+      <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>
+        Photos ({photos.length})
+      </Text>
+
+      <FlatList
+        data={photos}
+        numColumns={3}
+        scrollEnabled={false}
+        keyExtractor={(item, index) => item.id?.toString() || index.toString()}
+        columnWrapperStyle={{ gap: 10, marginBottom: 10 }}
+        renderItem={({ item }) => (
+          <TouchableOpacity
+            onPress={() => openFullScreen(item)}
+            style={{
+              width: imageSize,
+              height: imageSize,
+              backgroundColor: '#1e293b',
+              borderRadius: 8,
+              overflow: 'hidden',
+              borderWidth: 1,
+              borderColor: '#334155',
+            }}
+            accessibilityLabel={`Photo: ${item.name}`}
+            accessibilityRole="button"
+          >
+            {loadingPhotos[item.id] || !item.url ? (
+              <View style={{ 
+                flex: 1, 
+                justifyContent: 'center', 
+                alignItems: 'center' 
+              }}>
+                <ActivityIndicator size="small" color="#3b82f6" />
+              </View>
+            ) : (
+              <Image
+                source={{ uri: item.url }}
+                style={{ width: '100%', height: '100%' }}
+                resizeMode="cover"
+              />
+            )}
+          </TouchableOpacity>
+        )}
+      />
+
+      {/* Full Screen Photo Modal */}
+      <Modal
+        visible={!!selectedPhoto}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={closeFullScreen}
+      >
+        <View style={{ 
+          flex: 1, 
+          backgroundColor: 'rgba(0,0,0,0.95)',
+        }}>
+          <View style={{ 
+            position: 'absolute',
+            top: 40,
+            right: 20,
+            zIndex: 10
+          }}>
+            <TouchableOpacity
+              onPress={closeFullScreen}
+              style={{
+                backgroundColor: '#1e293b',
+                padding: 12,
+                borderRadius: 8,
+              }}
+              accessibilityLabel="Close photo"
+              accessibilityRole="button"
+            >
+              <X color="#ffffff" size={24} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView
+            contentContainerStyle={{
+              flex: 1,
+              justifyContent: 'center',
+              alignItems: 'center',
+              paddingVertical: 80,
+            }}
+            maximumZoomScale={3}
+            minimumZoomScale={1}
+          >
+            {selectedPhoto?.url ? (
+              <>
+                <Image
+                  source={{ uri: selectedPhoto.url }}
+                  style={{ 
+                    width: width - 40,
+                    height: width - 40,
+                  }}
+                  resizeMode="contain"
+                />
+                <Text style={{ 
+                  color: '#ffffff', 
+                  fontSize: 14, 
+                  marginTop: 20,
+                  textAlign: 'center'
+                }}>
+                  {selectedPhoto.name}
+                </Text>
+              </>
+            ) : (
+              <ActivityIndicator size="large" color="#3b82f6" />
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
     </View>
   );
 }

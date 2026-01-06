@@ -160,6 +160,21 @@ export const casesService = {
     return await response.blob();
   },
 
+  // NEW: Get document details with preview URL
+  async getDocumentDetails(caseId, documentId) {
+    const token = await authService.getToken();
+    if (!token) throw new Error("UNAUTHORIZED");
+
+    try {
+      const blob = await this.downloadCaseDocument(caseId, documentId);
+      const url = URL.createObjectURL(blob);
+      return { blob, url, type: blob.type };
+    } catch (error) {
+      console.error('Failed to get document details:', error);
+      throw error;
+    }
+  },
+
   async deleteCaseDocument(caseId, documentId) {
     const token = await authService.getToken();
     if (!token) throw new Error("UNAUTHORIZED");
