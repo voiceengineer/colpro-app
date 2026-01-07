@@ -142,6 +142,10 @@ export const casesService = {
     return await response.json();
   },
 
+// In casesService.js
+getDocumentDownloadUrl(caseId, documentId) {
+    return `${API_URL}/cases/${caseId}/documents/${documentId}/download`;
+},
   async downloadCaseDocument(caseId, documentId) {
     const token = await authService.getToken();
     if (!token) throw new Error("UNAUTHORIZED");

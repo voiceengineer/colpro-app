@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { 
   View, Text, TouchableOpacity, ScrollView, 
-  ActivityIndicator, Alert, Image, Dimensions, RefreshControl,
-  Modal, FlatList
+  ActivityIndicator, Alert, Dimensions, RefreshControl,
+  Linking, Platform
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -11,11 +11,15 @@ import {
   ArrowLeft, User, Phone, MapPin, CreditCard, 
   Calendar, DollarSign, AlertCircle, FileText,
   Package, Receipt, Mic, Copy, CheckCircle,
-  Eye, EyeOff, X, Download, Image as ImageIcon
+  Eye, EyeOff, Download,
 } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
+import * as MediaLibrary from 'expo-media-library';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import { casesService } from '../../lib/services/casesService';
+import { authService } from '../../lib/services/authService';
 
 const { width } = Dimensions.get('window');
 
@@ -24,7 +28,6 @@ const TABS = [
   { id: 'products', label: 'Products', icon: Package },
   { id: 'payments', label: 'Payments', icon: Receipt },
   { id: 'documents', label: 'Docs', icon: FileText },
-  { id: 'photos', label: 'Photos', icon: ImageIcon },
   { id: 'recordings', label: 'Audio', icon: Mic },
 ];
 
@@ -317,10 +320,6 @@ export default function CaseDetailsPage() {
         
         {activeTab === 'documents' && (
           <DocumentsTab caseId={id} />
-        )}
-
-        {activeTab === 'photos' && (
-          <PhotosTab caseId={id} />
         )}
         
         {activeTab === 'recordings' && (
@@ -745,12 +744,11 @@ function PaymentsTab({ caseId, account, formatCurrency, formatDate }) {
   );
 }
 
-// Documents Tab Component
+// Documents Tab Component - NOW INCLUDES ALL FILES (IMAGES + DOCUMENTS)
 function DocumentsTab({ caseId }) {
   const [documents, setDocuments] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
-  const [previewDoc, setPreviewDoc] = React.useState(null);
-  const [loadingPreview, setLoadingPreview] = React.useState(false);
+  const [downloadingIds, setDownloadingIds] = React.useState({});
 
   React.useEffect(() => {
     fetchDocuments();
@@ -759,37 +757,104 @@ function DocumentsTab({ caseId }) {
   const fetchDocuments = async () => {
     try {
       const docs = await casesService.getCaseDocuments(caseId);
-      // Filter out image files (they'll be shown in Photos tab)
-      const nonImageDocs = Array.isArray(docs) ? docs.filter(doc => {
-        const ext = doc.name?.toLowerCase().split('.').pop();
-        return !['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(ext);
-      }) : [];
-      setDocuments(nonImageDocs);
+      // Now we show ALL documents (including images)
+      setDocuments(Array.isArray(docs) ? docs : []);
     } catch (error) {
       console.error('Failed to fetch documents:', error);
     } finally {
       setLoading(false);
     }
   };
+  const handleDownload = async (doc) => {
+    setDownloadingIds(prev => ({ ...prev, [doc.id]: true }));
 
-  const handleDocumentPress = async (doc) => {
-    setLoadingPreview(true);
     try {
-      const details = await casesService.getDocumentDetails(caseId, doc.id);
-      setPreviewDoc({ ...doc, ...details });
-    } catch (error) {
-      Alert.alert('Error', 'Failed to load document preview');
-    } finally {
-      setLoadingPreview(false);
-    }
-  };
+        const token = await authService.getToken();
+        if (!token) throw new Error("Unauthorized");
 
-  const closePreview = () => {
-    if (previewDoc?.url) {
-      URL.revokeObjectURL(previewDoc.url);
+        // --- FIX IS HERE ---
+        if (Platform.OS === 'android') {
+            // Pass 'true' (boolean) for write-only permission. 
+            // Do NOT pass an object like { writeOnly: true }.
+            const { status } = await MediaLibrary.requestPermissionsAsync(true);
+            
+            if (status !== 'granted') {
+                Alert.alert("Permission needed", "We need access to save this file.");
+                setDownloadingIds(prev => ({ ...prev, [doc.id]: false }));
+                return;
+            }
+        }
+        // -------------------
+
+        let fileName = doc.originalName || doc.fileName || `document_${doc.id}`;
+        fileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+        
+        const hasExtension = fileName.includes('.');
+        if (!hasExtension && doc.mimeType) {
+            const mimeMap = {
+                'application/pdf': 'pdf',
+                'image/jpeg': 'jpg', 'image/png': 'png',
+                'application/msword': 'doc', 
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+                'application/vnd.ms-excel': 'xls', 
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+            };
+            const ext = mimeMap[doc.mimeType];
+            if (ext) fileName += `.${ext}`;
+        }
+
+        const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+        const downloadUrl = casesService.getDocumentDownloadUrl(caseId, doc.id);
+
+        const downloadResumable = FileSystem.createDownloadResumable(
+            downloadUrl,
+            fileUri,
+            {
+                headers: { 'Authorization': `Bearer ${token}` }
+            }
+        );
+
+        const result = await downloadResumable.downloadAsync();
+        if (!result || !result.uri) throw new Error("Download failed");
+
+        // Handle Saving based on Type
+        const isImageOrVideo = ['jpg', 'png', 'jpeg', 'mp4', 'mov', 'webp'].some(ext => fileName.toLowerCase().endsWith(ext));
+
+        if (isImageOrVideo) {
+            await MediaLibrary.saveToLibraryAsync(result.uri);
+            Alert.alert("Saved!", "Image saved to your Gallery.");
+        } 
+        else if (Platform.OS === 'android') {
+            try {
+                const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+                if (permissions.granted) {
+                    const base64Data = await FileSystem.readAsStringAsync(result.uri, { encoding: FileSystem.EncodingType.Base64 });
+                    const newFileUri = await FileSystem.StorageAccessFramework.createFileAsync(
+                        permissions.directoryUri, 
+                        fileName, 
+                        doc.mimeType || 'application/octet-stream'
+                    );
+                    await FileSystem.writeAsStringAsync(newFileUri, base64Data, { encoding: FileSystem.EncodingType.Base64 });
+                    Alert.alert("Success", "File saved to selected folder.");
+                } else {
+                    await Sharing.shareAsync(result.uri);
+                }
+            } catch (e) {
+                await Sharing.shareAsync(result.uri);
+            }
+        } 
+        else {
+            await Sharing.shareAsync(result.uri, { UTI: doc.mimeType, dialogTitle: fileName });
+        }
+
+    } catch (error) {
+        console.error('Download error:', error);
+        Alert.alert('Error', 'Failed to download document.');
+    } finally {
+        setDownloadingIds(prev => ({ ...prev, [doc.id]: false }));
     }
-    setPreviewDoc(null);
-  };
+};
+
 
   const getFileIcon = (fileName) => {
     const ext = fileName?.toLowerCase().split('.').pop();
@@ -800,8 +865,43 @@ function DocumentsTab({ caseId }) {
       case 'xls':
       case 'xlsx': return '📊';
       case 'txt': return '📃';
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+      case 'gif':
+      case 'webp':
+      case 'bmp': return '🖼️';
+      case 'mp4':
+      case 'mov':
+      case 'avi': return '🎥';
       default: return '📎';
     }
+  };
+
+  const getFileType = (fileName) => {
+    const ext = fileName?.toLowerCase().split('.').pop();
+    const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
+    if (imageExts.includes(ext)) return 'Image';
+    
+    switch(ext) {
+      case 'pdf': return 'PDF Document';
+      case 'doc':
+      case 'docx': return 'Word Document';
+      case 'xls':
+      case 'xlsx': return 'Excel Spreadsheet';
+      case 'txt': return 'Text File';
+      case 'mp4':
+      case 'mov':
+      case 'avi': return 'Video';
+      default: return 'File';
+    }
+  };
+
+  const formatFileSize = (bytes) => {
+    if (!bytes) return '';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
   if (loading) {
@@ -816,7 +916,7 @@ function DocumentsTab({ caseId }) {
     return (
       <View>
         <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>
-          Documents
+          Documents & Files
         </Text>
         
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 60 }}>
@@ -825,7 +925,7 @@ function DocumentsTab({ caseId }) {
             No Documents
           </Text>
           <Text style={{ color: '#64748b', fontSize: 14, marginTop: 8 }}>
-            No documents have been uploaded for this case
+            No documents or files have been uploaded for this case
           </Text>
         </View>
       </View>
@@ -835,290 +935,70 @@ function DocumentsTab({ caseId }) {
   return (
     <View>
       <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>
-        Documents ({documents.length})
+        Documents & Files ({documents.length})
       </Text>
 
-      {documents.map((doc, index) => (
-        <TouchableOpacity
-          key={doc.id || index}
-          onPress={() => handleDocumentPress(doc)}
-          style={{ 
-            backgroundColor: '#1e293b', 
-            borderRadius: 10, 
-            padding: 16,
-            marginBottom: 12,
-            borderWidth: 1,
-            borderColor: '#334155',
-            flexDirection: 'row',
-            alignItems: 'center',
-          }}
-          accessibilityLabel={`Document: ${doc.name || `Document ${index + 1}`}`}
-          accessibilityRole="button"
-        >
-          <Text style={{ fontSize: 32, marginRight: 12 }}>
-            {getFileIcon(doc.name)}
-          </Text>
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '500' }}>
-              {doc.name || `Document ${index + 1}`}
-            </Text>
-            <Text style={{ color: '#64748b', fontSize: 12, marginTop: 2 }}>
-              {doc.type || doc.mimeType || 'Unknown'} {doc.size ? `• ${doc.size}` : ''}
-            </Text>
-          </View>
-          <Download color="#3b82f6" size={20} />
-        </TouchableOpacity>
-      ))}
-
-      {/* Document Preview Modal */}
-      <Modal
-        visible={!!previewDoc}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={closePreview}
-      >
-        <View style={{ 
-          flex: 1, 
-          backgroundColor: 'rgba(0,0,0,0.95)',
-          justifyContent: 'center',
-          alignItems: 'center'
-        }}>
-          <View style={{ 
-            position: 'absolute',
-            top: 40,
-            right: 20,
-            zIndex: 10
-          }}>
-            <TouchableOpacity
-              onPress={closePreview}
-              style={{
-                backgroundColor: '#1e293b',
-                padding: 12,
-                borderRadius: 8,
-              }}
-              accessibilityLabel="Close preview"
-              accessibilityRole="button"
-            >
-              <X color="#ffffff" size={24} />
-            </TouchableOpacity>
-          </View>
-
-          {loadingPreview ? (
-            <ActivityIndicator size="large" color="#3b82f6" />
-          ) : (
-            <View style={{ width: '90%', height: '80%', justifyContent: 'center', alignItems: 'center' }}>
-              <Text style={{ color: '#ffffff', fontSize: 16, marginBottom: 20 }}>
-                {previewDoc?.name}
-              </Text>
-              <Text style={{ color: '#64748b', fontSize: 14 }}>
-                Document preview not available
-              </Text>
-              <Text style={{ color: '#64748b', fontSize: 12, marginTop: 8 }}>
-                Please download the file to view
-              </Text>
-            </View>
-          )}
-        </View>
-      </Modal>
-    </View>
-  );
-}
-
-// NEW: Photos Tab Component
-function PhotosTab({ caseId }) {
-  const [photos, setPhotos] = React.useState([]);
-  const [loading, setLoading] = React.useState(true);
-  const [selectedPhoto, setSelectedPhoto] = React.useState(null);
-  const [loadingPhotos, setLoadingPhotos] = React.useState({});
-
-  React.useEffect(() => {
-    fetchPhotos();
-  }, [caseId]);
-
-  const fetchPhotos = async () => {
-    try {
-      const docs = await casesService.getCaseDocuments(caseId);
-      // Filter only image files
-      const imageDocs = Array.isArray(docs) ? docs.filter(doc => {
-        const ext = doc.name?.toLowerCase().split('.').pop();
-        return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(ext);
-      }) : [];
-      
-      setPhotos(imageDocs);
-      
-      // Load image URLs
-      imageDocs.forEach(async (photo) => {
-        setLoadingPhotos(prev => ({ ...prev, [photo.id]: true }));
-        try {
-          const details = await casesService.getDocumentDetails(caseId, photo.id);
-          setPhotos(prevPhotos => 
-            prevPhotos.map(p => 
-              p.id === photo.id ? { ...p, url: details.url } : p
-            )
-          );
-        } catch (error) {
-          console.error('Failed to load photo:', error);
-        } finally {
-          setLoadingPhotos(prev => ({ ...prev, [photo.id]: false }));
-        }
-      });
-    } catch (error) {
-      console.error('Failed to fetch photos:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const openFullScreen = (photo) => {
-    setSelectedPhoto(photo);
-  };
-
-  const closeFullScreen = () => {
-    setSelectedPhoto(null);
-  };
-
-  if (loading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
-        <ActivityIndicator size="large" color="#3b82f6" />
-      </View>
-    );
-  }
-
-  if (photos.length === 0) {
-    return (
-      <View>
-        <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>
-          Photos
-        </Text>
-        
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 60 }}>
-          <ImageIcon color="#64748b" size={48} />
-          <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600', marginTop: 16 }}>
-            No Photos
-          </Text>
-          <Text style={{ color: '#64748b', fontSize: 14, marginTop: 8 }}>
-            No photos have been uploaded for this case
-          </Text>
-        </View>
-      </View>
-    );
-  }
-
-  const imageSize = (width - 60) / 3; // 3 columns with padding
-
-  return (
-    <View>
-      <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>
-        Photos ({photos.length})
-      </Text>
-
-      <FlatList
-        data={photos}
-        numColumns={3}
-        scrollEnabled={false}
-        keyExtractor={(item, index) => item.id?.toString() || index.toString()}
-        columnWrapperStyle={{ gap: 10, marginBottom: 10 }}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            onPress={() => openFullScreen(item)}
-            style={{
-              width: imageSize,
-              height: imageSize,
-              backgroundColor: '#1e293b',
-              borderRadius: 8,
-              overflow: 'hidden',
+      {documents.map((doc, index) => {
+        const docName = doc.originalName || doc.fileName || `Document ${index + 1}`;
+        return (
+          <View
+            key={doc.id ? `doc-${doc.id}-${index}` : `doc-index-${index}`}
+            style={{ 
+              backgroundColor: '#1e293b', 
+              borderRadius: 10, 
+              padding: 16,
+              marginBottom: 12,
               borderWidth: 1,
               borderColor: '#334155',
             }}
-            accessibilityLabel={`Photo: ${item.name}`}
-            accessibilityRole="button"
           >
-            {loadingPhotos[item.id] || !item.url ? (
-              <View style={{ 
-                flex: 1, 
-                justifyContent: 'center', 
-                alignItems: 'center' 
-              }}>
-                <ActivityIndicator size="small" color="#3b82f6" />
-              </View>
-            ) : (
-              <Image
-                source={{ uri: item.url }}
-                style={{ width: '100%', height: '100%' }}
-                resizeMode="cover"
-              />
-            )}
-          </TouchableOpacity>
-        )}
-      />
-
-      {/* Full Screen Photo Modal */}
-      <Modal
-        visible={!!selectedPhoto}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={closeFullScreen}
-      >
-        <View style={{ 
-          flex: 1, 
-          backgroundColor: 'rgba(0,0,0,0.95)',
-        }}>
-          <View style={{ 
-            position: 'absolute',
-            top: 40,
-            right: 20,
-            zIndex: 10
-          }}>
-            <TouchableOpacity
-              onPress={closeFullScreen}
-              style={{
-                backgroundColor: '#1e293b',
-                padding: 12,
-                borderRadius: 8,
-              }}
-              accessibilityLabel="Close photo"
-              accessibilityRole="button"
-            >
-              <X color="#ffffff" size={24} />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView
-            contentContainerStyle={{
-              flex: 1,
-              justifyContent: 'center',
-              alignItems: 'center',
-              paddingVertical: 80,
-            }}
-            maximumZoomScale={3}
-            minimumZoomScale={1}
-          >
-            {selectedPhoto?.url ? (
-              <>
-                <Image
-                  source={{ uri: selectedPhoto.url }}
-                  style={{ 
-                    width: width - 40,
-                    height: width - 40,
-                  }}
-                  resizeMode="contain"
-                />
-                <Text style={{ 
-                  color: '#ffffff', 
-                  fontSize: 14, 
-                  marginTop: 20,
-                  textAlign: 'center'
-                }}>
-                  {selectedPhoto.name}
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={{ fontSize: 32, marginRight: 12 }}>
+                {getFileIcon(docName)}
+              </Text>
+              
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '500' }}>
+                  {docName}
                 </Text>
-              </>
-            ) : (
-              <ActivityIndicator size="large" color="#3b82f6" />
-            )}
-          </ScrollView>
-        </View>
-      </Modal>
+                <Text style={{ color: '#64748b', fontSize: 12, marginTop: 4 }}>
+                  {getFileType(docName)}
+                  {doc.fileSize && ` • ${formatFileSize(doc.fileSize)}`}
+                  {doc.mimeType && !doc.fileSize && ` • ${doc.mimeType}`}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                onPress={() => handleDownload(doc)}
+                disabled={downloadingIds[doc.id]}
+                style={{
+                  backgroundColor: downloadingIds[doc.id] ? '#1e293b' : '#3b82f6',
+                  paddingHorizontal: 16,
+                  paddingVertical: 10,
+                  borderRadius: 8,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  marginLeft: 12,
+                }}
+                accessibilityLabel={`Download ${docName}`}
+                accessibilityRole="button"
+              >
+                {downloadingIds[doc.id] ? (
+                  <ActivityIndicator size="small" color="#3b82f6" />
+                ) : (
+                  <>
+                    <Download color="#ffffff" size={16} />
+                    <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '600' }}>
+                      Download
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        );
+      })}
     </View>
   );
 }

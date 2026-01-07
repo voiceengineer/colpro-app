@@ -94,24 +94,45 @@ export default function ContractDetail() {
 
       const token = await contractService.getToken();
 
-      const downloadResumable = FileSystem.createDownloadResumable(
-        downloadUrl,
-        fileUri,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          }
-        }
-      );
+      // Download using fetch + blob/arraybuffer manually to avoid deprecated downloadAsync
+      const response = await fetch(downloadUrl, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
 
-      const { uri } = await downloadResumable.downloadAsync();
-      
-      // Share or open the file
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(uri);
-      } else {
-        Alert.alert('Success', 'File downloaded successfully');
+      if (!response.ok) {
+        throw new Error(`Download failed with status ${response.status}`);
       }
+
+      const blob = await response.blob();
+      
+      // Convert Blob to Base64
+      const reader = new FileReader();
+      reader.readAsDataURL(blob);
+      reader.onloadend = async () => {
+        try {
+          const base64data = reader.result.split(',')[1];
+          await FileSystem.writeAsStringAsync(fileUri, base64data, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+
+          // Share or open the file
+          if (await Sharing.isAvailableAsync()) {
+            await Sharing.shareAsync(fileUri);
+          } else {
+            Alert.alert('Success', 'File downloaded successfully');
+          }
+        } catch (saveError) {
+          console.error('Save error:', saveError);
+          Alert.alert('Error', 'Failed to save file');
+        }
+      };
+      
+      reader.onerror = () => {
+        Alert.alert('Error', 'Failed to process file');
+      };
+
     } catch (error) {
       console.error('Download error:', error);
       Alert.alert('Error', 'Failed to download file');

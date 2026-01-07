@@ -10,22 +10,17 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        // Labels (Naam) dikhane ke liye setting
         tabBarShowLabel: true, 
         tabBarStyle: {
           backgroundColor: '#1e293b',
           borderTopWidth: 1.5,
           borderTopColor: '#334155',
           
-          // Height ko dynamic rakha hai taaki safe area cover ho jaye
-          // Android aur iOS dono pe insets add kiye hain
           height: Platform.OS === 'ios' 
             ? 65 + insets.bottom 
-            : 55 + insets.bottom, 
+            : 60 + insets.bottom, 
             
-          // Padding bottom se content ko upar push karega taaki 
-          // navigation bar ke peeche text/icon na chupe
-          paddingBottom: insets.bottom > 0 ? insets.bottom : 4,
+          paddingBottom: insets.bottom > 0 ? insets.bottom : 10,
           paddingTop: 4,
           
           position: 'absolute',
@@ -37,11 +32,11 @@ export default function TabLayout() {
         tabBarActiveTintColor: '#60a5fa',
         tabBarInactiveTintColor: '#94a3b8',
         
-        // Text styling - Naam saaf dikhne ke liye
+        // Text styling 
         tabBarLabelStyle: {
           fontSize: 12,
           fontWeight: '600',
-          marginTop: 4, // Icon aur text ke beech gap
+          marginTop: 4,
           marginBottom: 0,
         },
         
@@ -78,6 +73,12 @@ export default function TabLayout() {
       {/* Hidden screens */}
       <Tabs.Screen
         name="cases"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="tasks"
         options={{
           href: null,
         }}

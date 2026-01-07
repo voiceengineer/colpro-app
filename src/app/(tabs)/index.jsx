@@ -4,10 +4,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { 
-  MapPin, Bell, Search, FileText, Briefcase, Zap, TrendingUp, CheckCircle, Clock, XCircle
+  MapPin, Bell, Search, FileText, ClipboardList, Zap, TrendingUp, CheckCircle, Clock, XCircle
 } from 'lucide-react-native';
 import { useAuth } from '../../lib/authContext';
 import { casesService } from '../../lib/services/casesService';
+import { tasksService } from '../../lib/services/tasksService';
 
 export default function Home() {
   const insets = useSafeAreaInsets();
@@ -15,12 +16,15 @@ export default function Home() {
   const { user } = useAuth();
   
   const [casesCount, setCasesCount] = useState(0);
+  const [tasksCount, setTasksCount] = useState(0);
   const [casesLoading, setCasesLoading] = useState(true);
+  const [tasksLoading, setTasksLoading] = useState(true);
   const [activeView, setActiveView] = useState('cases');
 
   useEffect(() => {
     if (user?.id) {
       fetchUserCasesCount();
+      fetchUserTasksCount();
     }
   }, [user?.id]);
 
@@ -44,35 +48,79 @@ export default function Home() {
     }
   };
 
+  const fetchUserTasksCount = async () => {
+    try {
+      setTasksLoading(true);
+      const response = await tasksService.getTasks({ 
+        limit: 1000, 
+        assignedAgentId: user.id 
+      });
+
+      if (Array.isArray(response)) {
+        setTasksCount(response.length);
+      } else if (response?.items) {
+        setTasksCount(response.items.length);
+      } else if (response?.data) {
+        setTasksCount(response.data.length);
+      } else if (response?.meta?.total) {
+        setTasksCount(response.meta.total);
+      } else if (response?.total) {
+        setTasksCount(response.total);
+      } else {
+        setTasksCount(0);
+      }
+    } catch (error) {
+      if (error.message === 'UNAUTHORIZED' || error.message.includes('401')) {
+        Alert.alert(
+          'Session Expired', 
+          'Your session has expired. Please login again.',
+          [{ text: 'OK', onPress: () => router.replace('/login') }]
+        );
+        return;
+      }
+      setTasksCount(0);
+    } finally {
+      setTasksLoading(false);
+    }
+  };
+
   const getDisplayData = () => {
     switch(activeView) {
       case 'cases':
         return {
           mainValue: '0',
-          casesCount: casesCount,
+          count: casesCount,
           label: 'Total Amount',
-          color: '#3b82f6'
+          color: '#3b82f6',
+          loading: casesLoading,
+          countLabel: 'cases'
         };
-      case 'processed':
+      case 'tasks':
         return {
           mainValue: '0',
-          casesCount: 0,
-          label: 'Processed',
-          color: '#8b5cf6'
+          count: tasksCount,
+          label: 'Total Tasks',
+          color: '#8b5cf6',
+          loading: tasksLoading,
+          countLabel: 'tasks'
         };
       case 'bonuses':
         return {
           mainValue: '0',
-          casesCount: 0,
+          count: 0,
           label: 'Bonuses',
-          color: '#f59e0b'
+          color: '#f59e0b',
+          loading: false,
+          countLabel: 'bonuses'
         };
       default:
         return {
           mainValue: '0',
-          casesCount: casesCount,
+          count: casesCount,
           label: 'Total Amount',
-          color: '#3b82f6'
+          color: '#3b82f6',
+          loading: casesLoading,
+          countLabel: 'cases'
         };
     }
   };
@@ -241,8 +289,8 @@ export default function Home() {
             {displayData.label}
           </Text>
 
-          {casesLoading && activeView === 'cases' ? (
-            <ActivityIndicator color="#3b82f6" size="large" />
+          {displayData.loading ? (
+            <ActivityIndicator color={displayData.color} size="large" />
           ) : (
             <>
               {/* Currency */}
@@ -265,7 +313,7 @@ export default function Home() {
                 UZS
               </Text>
 
-              {/* Cases Count */}
+              {/* Count Display */}
               <View style={{
                 flexDirection: 'row',
                 alignItems: 'center',
@@ -276,12 +324,18 @@ export default function Home() {
                 paddingHorizontal: 16,
                 marginBottom: 16,
               }}>
-                <FileText color="#3b82f6" size={18} />
+                {activeView === 'cases' ? (
+                  <FileText color="#3b82f6" size={18} />
+                ) : activeView === 'tasks' ? (
+                  <ClipboardList color="#8b5cf6" size={18} />
+                ) : (
+                  <Zap color="#f59e0b" size={18} />
+                )}
                 <Text style={{ color: '#ffffff', fontSize: 24, fontWeight: 'bold', marginHorizontal: 8 }}>
-                  {displayData.casesCount}
+                  {displayData.count}
                 </Text>
                 <Text style={{ color: '#64748b', fontSize: 13 }}>
-                  cases
+                  {displayData.countLabel}
                 </Text>
               </View>
             </>
@@ -302,11 +356,16 @@ export default function Home() {
               }}
             />
             <CategoryButton 
-              icon={Briefcase} 
-              label="Processed" 
+              icon={ClipboardList} 
+              label="Tasks" 
               color="#8b5cf6"
-              isActive={activeView === 'processed'}
-              onPress={() => setActiveView('processed')}
+              isActive={activeView === 'tasks'}
+              onPress={() => {
+                setActiveView('tasks');
+                if (tasksCount > 0) {
+                  setTimeout(() => router.push('/tasks'), 200);
+                }
+              }}
             />
             <CategoryButton 
               icon={Zap} 
@@ -398,7 +457,7 @@ export default function Home() {
           borderColor: '#334155',
         }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-            <Briefcase color="#8b5cf6" size={18} />
+            <FileText color="#8b5cf6" size={18} />
             <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '600', marginLeft: 8 }}>
               Portfolio
             </Text>

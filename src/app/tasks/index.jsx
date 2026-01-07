@@ -6,16 +6,29 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Search, Briefcase, Calendar, DollarSign, AlertCircle, User, Phone, Copy } from 'lucide-react-native';
+import { 
+  Search, ClipboardList, Calendar, DollarSign, 
+  AlertCircle, User, Phone, Copy, MapPin, Clock 
+} from 'lucide-react-native';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
-import { casesService } from '../../lib/services/casesService';
+import { tasksService } from '../../lib/services/tasksService';
 import { useAuth } from '../../lib/authContext';
 import { useDebounce } from '../../hooks/useDebounce';
 
-const CaseCard = React.memo(({ item, onPress }) => {
+const TaskCard = React.memo(({ item, onPress }) => {
   const router = useRouter();
-  const statusColor = item.status?.color || '#64748b';
+
+  const getStatusColor = (status) => {
+    const s = status?.toLowerCase();
+    switch(s) {
+      case 'completed': return '#10b981';
+      case 'pending': return '#f59e0b';
+      case 'in_progress': return '#3b82f6';
+      case 'cancelled': return '#ef4444';
+      default: return '#64748b';
+    }
+  };
 
   const getPriorityColor = (priority) => {
     const p = priority?.toLowerCase();
@@ -35,35 +48,44 @@ const CaseCard = React.memo(({ item, onPress }) => {
     } catch { return 'N/A'; }
   };
 
+  const formatTime = (timeString) => {
+    if (!timeString) return 'N/A';
+    try {
+      const [hours, minutes] = timeString.split(':');
+      return `${hours}:${minutes}`;
+    } catch { return 'N/A'; }
+  };
+
   const formatCurrency = (amount) => {
     if (!amount && amount !== 0) return '0';
     return Number(amount).toLocaleString('en-US');
   };
 
   const handleCopyData = async () => {
-    const caseData = `
-Case #${item.id}
+    const taskData = `
+Task #${item.id}
 Priority: ${item.priority || 'N/A'}
+Status: ${item.status || 'N/A'}
 Debtor: ${item.debtorName || 'N/A'}
-Account: ${item.accountNumber || 'N/A'}
 Phone: ${item.debtorPhone || 'N/A'}
-Balance: ${formatCurrency(item.currentBalance || item.totalAmountDue)}
-Days Overdue: ${item.daysPastDue || item.daysOverdue || '0'}
-Last Payment: ${formatDate(item.lastPaymentDate)}
-Stage: ${item.collectionStage ? item.collectionStage.replace(/_/g, ' ').toUpperCase() : 'N/A'}
-Status: ${item.status?.description || 'N/A'}
+Address: ${item.debtorAddress || 'N/A'}
+Scheduled Date: ${formatDate(item.scheduledDate)}
+Scheduled Time: ${formatTime(item.scheduledTime)}
+Expected Amount: ${formatCurrency(item.expectedAmount)}
+Visit Type: ${item.visitType || 'N/A'}
+Assigned Agent: ${item.assignedAgent || 'N/A'}
     `.trim();
 
     try {
-      await Clipboard.setStringAsync(caseData);
-      Alert.alert('Copied', 'Case data copied to clipboard');
+      await Clipboard.setStringAsync(taskData);
+      Alert.alert('Copied', 'Task data copied to clipboard');
     } catch (error) {
-      Alert.alert('Error', 'Failed to copy case data');
+      Alert.alert('Error', 'Failed to copy task data');
     }
   };
 
   const handlePress = () => {
-    router.push(`/cases/${item.id}`);
+    router.push(`/tasks/${item.id}`);
   };
   
   return (
@@ -80,9 +102,9 @@ Status: ${item.status?.description || 'N/A'}
     >
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-          <Briefcase color="#3b82f6" size={18} />
+          <ClipboardList color="#3b82f6" size={18} />
           <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600', marginLeft: 8 }}>
-            Case #{item.id}
+            Task #{item.id}
           </Text>
         </View>
 
@@ -126,12 +148,6 @@ Status: ${item.status?.description || 'N/A'}
           </View>
         )}
         
-        {item.accountNumber && (
-          <Text style={{ color: '#64748b', fontSize: 12, marginLeft: 22 }}>
-            Account: {item.accountNumber}
-          </Text>
-        )}
-        
         {item.debtorPhone && (
           <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
             <Phone color="#64748b" size={14} />
@@ -140,38 +156,49 @@ Status: ${item.status?.description || 'N/A'}
             </Text>
           </View>
         )}
+
+        {item.debtorAddress && (
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: 4 }}>
+            <MapPin color="#64748b" size={14} style={{ marginTop: 2 }} />
+            <Text style={{ color: '#64748b', fontSize: 12, marginLeft: 6, flex: 1 }} numberOfLines={2}>
+              {item.debtorAddress}
+            </Text>
+          </View>
+        )}
       </View>
 
       <View style={{ gap: 8, marginBottom: 12 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <DollarSign color="#64748b" size={16} />
-          <Text style={{ color: '#64748b', fontSize: 13, marginLeft: 6 }}>
-            Balance: 
-          </Text>
-          <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '500', marginLeft: 4 }}>
-            {formatCurrency(item.currentBalance || item.totalAmountDue)}
-          </Text>
-        </View>
-
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <AlertCircle color="#64748b" size={16} />
-          <Text style={{ color: '#64748b', fontSize: 13, marginLeft: 6 }}>
-            Days Overdue: 
-          </Text>
-          <Text style={{ color: '#ef4444', fontSize: 13, fontWeight: '600', marginLeft: 4 }}>
-            {item.daysPastDue || item.daysOverdue || '0'}
-          </Text>
-        </View>
-
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <Calendar color="#64748b" size={16} />
           <Text style={{ color: '#64748b', fontSize: 13, marginLeft: 6 }}>
-            Last Payment: 
+            Scheduled: 
           </Text>
           <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '500', marginLeft: 4 }}>
-            {formatDate(item.lastPaymentDate)}
+            {formatDate(item.scheduledDate)} at {formatTime(item.scheduledTime)}
           </Text>
         </View>
+
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <DollarSign color="#64748b" size={16} />
+          <Text style={{ color: '#64748b', fontSize: 13, marginLeft: 6 }}>
+            Expected Amount: 
+          </Text>
+          <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '500', marginLeft: 4 }}>
+            {formatCurrency(item.expectedAmount)}
+          </Text>
+        </View>
+
+        {item.estimatedDuration && (
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Clock color="#64748b" size={16} />
+            <Text style={{ color: '#64748b', fontSize: 13, marginLeft: 6 }}>
+              Duration: 
+            </Text>
+            <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '500', marginLeft: 4 }}>
+              {item.estimatedDuration} mins
+            </Text>
+          </View>
+        )}
       </View>
 
       <View style={{ 
@@ -182,29 +209,30 @@ Status: ${item.status?.description || 'N/A'}
         justifyContent: 'space-between',
         alignItems: 'center'
       }}>
-        {item.collectionStage && (
+        {item.visitType && (
           <View style={{ flex: 1 }}>
             <Text style={{ color: '#64748b', fontSize: 12 }}>
-              Stage: <Text style={{ color: '#3b82f6', fontWeight: '500' }}>
-                {item.collectionStage.replace(/_/g, ' ').toUpperCase()}
+              Type: <Text style={{ color: '#3b82f6', fontWeight: '500', textTransform: 'capitalize' }}>
+                {item.visitType}
               </Text>
             </Text>
           </View>
         )}
         
-        {item.status?.description && (
+        {item.status && (
           <View style={{
-            backgroundColor: `${statusColor}20`,
+            backgroundColor: `${getStatusColor(item.status)}20`,
             paddingHorizontal: 8,
             paddingVertical: 3,
             borderRadius: 6,
           }}>
             <Text style={{ 
-              color: statusColor, 
+              color: getStatusColor(item.status), 
               fontSize: 11, 
-              fontWeight: '600' 
+              fontWeight: '600',
+              textTransform: 'uppercase'
             }}>
-              {item.status.description}
+              {item.status.replace(/_/g, ' ')}
             </Text>
           </View>
         )}
@@ -233,7 +261,7 @@ const SkeletonCard = () => (
   </View>
 );
 
-export default function Cases() {
+export default function Tasks() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
@@ -252,17 +280,16 @@ export default function Cases() {
     isRefetching,
     refetch,
   } = useInfiniteQuery({
-    queryKey: ['cases', debouncedSearch, user?.id],
+    queryKey: ['tasks', debouncedSearch, user?.id],
     queryFn: async ({ pageParam = 1 }) => {
       const params = { 
         page: pageParam, 
         limit: 20,
         search: debouncedSearch.trim(),
-        agentId: user?.id,
+        assignedAgentId: user?.id,
       };
-      const response = await casesService.getCases(params);
+      const response = await tasksService.getTasks(params);
 
-      // Normalize the API response
       if (response?.items && Array.isArray(response.items)) {
         return response;
       }
@@ -288,13 +315,13 @@ export default function Cases() {
     if (errorMessage === 'UNAUTHORIZED') {
       Alert.alert('Session Expired', 'Please login again', [{ text: 'OK', onPress: () => router.replace('/login') }]);
     } else if (errorMessage.includes('FORBIDDEN')) {
-      Alert.alert('Permission Denied', 'You do not have permission to view cases');
+      Alert.alert('Permission Denied', 'You do not have permission to view tasks');
     } else {
-      Alert.alert('Error', 'Failed to load cases');
+      Alert.alert('Error', 'Failed to load tasks');
     }
   }
   
-  const cases = useMemo(() => data?.pages.flatMap(page => page.items) ?? [], [data]);
+  const tasks = useMemo(() => data?.pages.flatMap(page => page.items) ?? [], [data]);
 
   const loadMore = () => {
     if (hasNextPage && !isFetchingNextPage) {
@@ -316,12 +343,12 @@ export default function Cases() {
     if (isLoading) return null;
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
-        <Briefcase color="#64748b" size={48} />
+        <ClipboardList color="#64748b" size={48} />
         <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: '600', marginTop: 16 }}>
-          No Cases Found
+          No Tasks Found
         </Text>
         <Text style={{ color: '#64748b', fontSize: 14, marginTop: 8, textAlign: 'center' }}>
-          {debouncedSearch ? 'Try a different search term' : 'No cases available'}
+          {debouncedSearch ? 'Try a different search term' : 'No tasks available'}
         </Text>
       </View>
     );
@@ -337,7 +364,7 @@ export default function Cases() {
         paddingBottom: 16 
       }}>
         <Text style={{ color: '#ffffff', fontSize: 28, fontWeight: 'bold', marginBottom: 16 }}>
-          Cases
+          Field Tasks
         </Text>
 
         <View style={{
@@ -358,7 +385,7 @@ export default function Cases() {
               paddingVertical: 12,
               marginLeft: 12,
             }}
-            placeholder="Search by name, account, or ID..."
+            placeholder="Search by name, phone, or address..."
             placeholderTextColor="#64748b"
             value={searchInput}
             onChangeText={setSearchInput}
@@ -376,9 +403,9 @@ export default function Cases() {
         </View>
       ) : (
         <FlatList
-          data={cases}
-          renderItem={({ item }) => <CaseCard item={item} />}
-          keyExtractor={(item, index) => `${item.id}-${index}`}
+          data={tasks}
+          renderItem={({ item }) => <TaskCard item={item} />}
+          keyExtractor={(item) => item.id.toString()}
           contentContainerStyle={{ 
             paddingHorizontal: 24, 
             paddingBottom: insets.bottom + 24 
