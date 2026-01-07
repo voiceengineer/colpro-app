@@ -26,7 +26,67 @@ export const tasksService = {
 
     return await response.json();
   },
+  
 
+async uploadTaskAttachment(taskId, fileUri) {
+    const token = await authService.getToken();
+    if (!token) throw new Error("UNAUTHORIZED");
+
+    const url = `${API_URL}/field-visit/tasks/${taskId}/attachments`;
+
+    // 1. Prepare File Details
+    // Ensure 'file://' prefix for Android XHR
+    const uri = fileUri.startsWith('file://') ? fileUri : `file://${fileUri}`;
+    const fileType = uri.endsWith('png') ? 'image/png' : 'image/jpeg';
+    const fileName = `upload_${Date.now()}.${uri.endsWith('png') ? 'png' : 'jpg'}`;
+
+    // 2. Use XMLHttpRequest (Bypasses the "Fetch" issues)
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', url);
+      
+      // Headers
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.setRequestHeader('Accept', 'application/json');
+      // CRITICAL: NEVER set Content-Type on XHR for multipart. 
+      // The browser/native layer handles the boundary automatically.
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const response = JSON.parse(xhr.response);
+            resolve(response);
+          } catch (e) {
+            resolve({}); // Handle empty success response
+          }
+        } else {
+          console.error("XHR Failed:", xhr.responseText);
+          try {
+            const error = JSON.parse(xhr.responseText);
+            reject(new Error(error.message || `Upload failed: ${xhr.status}`));
+          } catch (e) {
+            reject(new Error(`Upload failed with status ${xhr.status}`));
+          }
+        }
+      };
+
+      xhr.onerror = (e) => {
+        console.error("XHR Network Error:", e);
+        reject(new Error("Network request failed"));
+      };
+
+      // 3. Construct FormData (The "Native" way)
+      const formData = new FormData();
+      formData.append('file', {
+        uri: uri,
+        name: fileName,
+        type: fileType,
+      });
+
+      // 4. Send
+      xhr.send(formData);
+    });
+  },
   async getTaskById(taskId) {
     const token = await authService.getToken();
     if (!token) throw new Error("UNAUTHORIZED");
@@ -69,7 +129,8 @@ export const tasksService = {
 
     return await response.json();
   },
-
+ getAttachmentDownloadUrl(attachmentId) {
+    return `${API_URL}/field-visit/attachments/${attachmentId}/download`;},
   async getTaskAttachments(taskId) {
     const token = await authService.getToken();
     if (!token) throw new Error("UNAUTHORIZED");

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { 
   View, Text, TouchableOpacity, ScrollView, 
-  ActivityIndicator, Alert, Image, Dimensions, RefreshControl,
-  Modal, FlatList
+  ActivityIndicator, Alert, Dimensions, RefreshControl,
+  Modal, Platform, Image
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -11,14 +11,30 @@ import {
   ArrowLeft, User, Phone, MapPin, Calendar, 
   DollarSign, AlertCircle, FileText, Package,
   Copy, CheckCircle, Eye, EyeOff, X, Download,
-  Clock, ClipboardList
+  Clock, ClipboardList, Image as ImageIcon, Camera
 } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
+
+// --- IMPORTS FOR DOWNLOAD & CAMERA ---
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import * as MediaLibrary from 'expo-media-library'; 
+import * as ImagePicker from 'expo-image-picker';
+
+// --- SERVICES ---
 import { tasksService } from '../../lib/services/tasksService';
 import { casesService } from '../../lib/services/casesService';
+import { authService } from '../../lib/services/authService';
 
 const { width } = Dimensions.get('window');
+
+// Helper to check file type
+const isMediaFile = (fileName) => {
+  if (!fileName) return false;
+  const ext = fileName.split('.').pop().toLowerCase();
+  return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4', 'mov'].includes(ext);
+};
 
 const TABS = [
   { id: 'info', label: 'Info', icon: User },
@@ -62,12 +78,7 @@ export default function TaskDetailsPage() {
       <View style={{ flex: 1, backgroundColor: '#0f172a', justifyContent: 'center', alignItems: 'center' }}>
         <AlertCircle color="#ef4444" size={48} />
         <Text style={{ color: '#ffffff', fontSize: 18, marginTop: 16 }}>Failed to load task</Text>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={{ marginTop: 24, paddingHorizontal: 24, paddingVertical: 12, backgroundColor: '#3b82f6', borderRadius: 8 }}
-          accessibilityLabel="Go back to tasks list"
-          accessibilityRole="button"
-        >
+        <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 24, paddingHorizontal: 24, paddingVertical: 12, backgroundColor: '#3b82f6', borderRadius: 8 }}>
           <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600' }}>Go Back</Text>
         </TouchableOpacity>
       </View>
@@ -141,190 +152,67 @@ export default function TaskDetailsPage() {
       <StatusBar style="light" />
       
       {/* Header */}
-      <View style={{ 
-        paddingTop: insets.top + 16, 
-        paddingHorizontal: 20,
-        paddingBottom: 16,
-        backgroundColor: '#1e293b',
-        borderBottomWidth: 1,
-        borderBottomColor: '#334155',
-      }}>
+      <View style={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 16, backgroundColor: '#1e293b', borderBottomWidth: 1, borderBottomColor: '#334155' }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-            <TouchableOpacity
-              onPress={() => router.back()}
-              style={{ marginRight: 16, padding: 8 }}
-              accessibilityLabel="Go back"
-              accessibilityRole="button"
-            >
+            <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 16, padding: 8 }}>
               <ArrowLeft color="#ffffff" size={24} />
             </TouchableOpacity>
             
             <View style={{ flex: 1 }}>
-              <Text style={{ color: '#ffffff', fontSize: 20, fontWeight: 'bold' }}>
-                Task #{taskData?.id}
-              </Text>
-              <Text style={{ color: '#64748b', fontSize: 13, marginTop: 2 }}>
-                {taskData?.debtorName || 'N/A'}
-              </Text>
+              <Text style={{ color: '#ffffff', fontSize: 20, fontWeight: 'bold' }}>Task #{taskData?.id}</Text>
+              <Text style={{ color: '#64748b', fontSize: 13, marginTop: 2 }}>{taskData?.debtorName || 'N/A'}</Text>
             </View>
           </View>
 
-          <View style={{
-            backgroundColor: `${getPriorityColor(taskData?.priority)}20`,
-            paddingHorizontal: 12,
-            paddingVertical: 6,
-            borderRadius: 8,
-          }}
-          accessibilityLabel={`Priority: ${taskData?.priority || 'Unknown'}`}
-          accessibilityRole="text"
-          >
-            <Text style={{ 
-              color: getPriorityColor(taskData?.priority), 
-              fontSize: 12, 
-              fontWeight: '700',
-              textTransform: 'uppercase'
-            }}>
+          <View style={{ backgroundColor: `${getPriorityColor(taskData?.priority)}20`, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}>
+            <Text style={{ color: getPriorityColor(taskData?.priority), fontSize: 12, fontWeight: '700', textTransform: 'uppercase' }}>
               {taskData?.priority || 'N/A'}
             </Text>
           </View>
         </View>
 
         {/* Quick Stats */}
-        <View style={{ 
-          flexDirection: 'row', 
-          marginTop: 16, 
-          gap: 12,
-          paddingTop: 16,
-          borderTopWidth: 1,
-          borderTopColor: '#334155',
-        }}>
+        <View style={{ flexDirection: 'row', marginTop: 16, gap: 12, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#334155' }}>
           <View style={{ flex: 1, backgroundColor: '#0f172a', padding: 12, borderRadius: 8 }}>
             <Text style={{ color: '#64748b', fontSize: 11, fontWeight: '600' }}>EXPECTED</Text>
-            <Text 
-              style={{ color: '#ffffff', fontSize: 16, fontWeight: 'bold', marginTop: 4 }}
-              accessibilityLabel={`Expected amount: ${formatCurrency(taskData?.expectedAmount)}`}
-            >
-              {formatCurrency(taskData?.expectedAmount)}
-            </Text>
+            <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: 'bold', marginTop: 4 }}>{formatCurrency(taskData?.expectedAmount)}</Text>
           </View>
           
           <View style={{ flex: 1, backgroundColor: '#0f172a', padding: 12, borderRadius: 8 }}>
             <Text style={{ color: '#64748b', fontSize: 11, fontWeight: '600' }}>COLLECTED</Text>
-            <Text 
-              style={{ color: '#10b981', fontSize: 16, fontWeight: 'bold', marginTop: 4 }}
-              accessibilityLabel={`Collected amount: ${formatCurrency(taskData?.actualAmountCollected || 0)}`}
-            >
-              {formatCurrency(taskData?.actualAmountCollected || 0)}
-            </Text>
+            <Text style={{ color: '#10b981', fontSize: 16, fontWeight: 'bold', marginTop: 4 }}>{formatCurrency(taskData?.actualAmountCollected || 0)}</Text>
           </View>
 
           <View style={{ flex: 1, backgroundColor: '#0f172a', padding: 12, borderRadius: 8 }}>
             <Text style={{ color: '#64748b', fontSize: 11, fontWeight: '600' }}>STATUS</Text>
-            <Text 
-              style={{ 
-                color: getStatusColor(taskData?.status), 
-                fontSize: 13, 
-                fontWeight: 'bold', 
-                marginTop: 4,
-                textTransform: 'uppercase'
-              }}
-              accessibilityLabel={`Status: ${taskData?.status || 'Unknown'}`}
-            >
-              {taskData?.status?.replace(/_/g, ' ') || 'N/A'}
-            </Text>
+            <Text style={{ color: getStatusColor(taskData?.status), fontSize: 13, fontWeight: 'bold', marginTop: 4, textTransform: 'uppercase' }}>{taskData?.status?.replace(/_/g, ' ') || 'N/A'}</Text>
           </View>
         </View>
       </View>
 
       {/* Tabs */}
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        style={{ 
-          backgroundColor: '#1e293b',
-          borderBottomWidth: 1,
-          borderBottomColor: '#334155',
-          maxHeight: 60, 
-        }}
-        contentContainerStyle={{ 
-          paddingHorizontal: 16, 
-          paddingVertical: 10, 
-          gap: 10 
-        }}
-      >
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ backgroundColor: '#1e293b', borderBottomWidth: 1, borderBottomColor: '#334155', maxHeight: 60 }} contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 10 }}>
         {TABS.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
           return (
-            <TouchableOpacity
-              key={tab.id}
-              onPress={() => setActiveTab(tab.id)}
-              style={{
-                backgroundColor: isActive ? '#3b82f6' : '#0f172a',
-                paddingHorizontal: 10, 
-                borderRadius: 8,       
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 6,
-                borderWidth: 1,
-                borderColor: isActive ? '#3b82f6' : '#334155',
-                shadowColor: isActive ? '#3b82f6' : '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: isActive ? 0.3 : 0,
-                shadowRadius: 4,
-                elevation: isActive ? 4 : 0,
-              }}
-              accessibilityLabel={`${tab.label} tab`}
-              accessibilityRole="button"
-              accessibilityState={{ selected: isActive }}
-            >
-              <Icon 
-                color={isActive ? '#ffffff' : '#64748b'} 
-                size={18}
-              />
-              <Text style={{ 
-                color: isActive ? '#ffffff' : '#64748b',
-                fontSize: 14,
-                fontWeight: isActive ? '700' : '600',
-              }}>
-                {tab.label}
-              </Text>
+            <TouchableOpacity key={tab.id} onPress={() => setActiveTab(tab.id)} style={{ backgroundColor: isActive ? '#3b82f6' : '#0f172a', paddingHorizontal: 10, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: isActive ? '#3b82f6' : '#334155' }}>
+              <Icon color={isActive ? '#ffffff' : '#64748b'} size={18} />
+              <Text style={{ color: isActive ? '#ffffff' : '#64748b', fontSize: 14, fontWeight: isActive ? '700' : '600' }}>{tab.label}</Text>
             </TouchableOpacity>
           );
         })}
       </ScrollView>
 
       {/* Content */}
-      <ScrollView 
-        style={{ flex: 1 }}
-        contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 20 }}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor="#3b82f6"
-          />
-        }
-        accessibilityRole="scrollview"
-      >
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 20 }} refreshControl={ <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#3b82f6" /> }>
         {activeTab === 'info' && (
-          <TaskInfoTab 
-            taskData={taskData}
-            agent={agent}
-            formatCurrency={formatCurrency}
-            formatDate={formatDate}
-            formatTime={formatTime}
-            copyToClipboard={copyToClipboard}
-            sensitiveDataVisible={sensitiveDataVisible}
-            toggleSensitiveData={toggleSensitiveData}
-          />
+          <TaskInfoTab taskData={taskData} agent={agent} formatCurrency={formatCurrency} formatDate={formatDate} formatTime={formatTime} copyToClipboard={copyToClipboard} sensitiveDataVisible={sensitiveDataVisible} toggleSensitiveData={toggleSensitiveData} />
         )}
-        
         {activeTab === 'products' && (
           <ProductsTab caseId={taskData?.caseId} formatCurrency={formatCurrency} />
         )}
-        
         {activeTab === 'documents' && (
           <DocumentsTab taskId={id} />
         )}
@@ -333,402 +221,41 @@ export default function TaskDetailsPage() {
   );
 }
 
-// Task Info Tab Component
-function TaskInfoTab({ 
-  taskData, 
-  agent, 
-  formatCurrency, 
-  formatDate, 
-  formatTime,
-  copyToClipboard,
-  sensitiveDataVisible,
-  toggleSensitiveData 
-}) {
-  const InfoCard = ({ icon: Icon, label, value, onCopy, sensitive, sensitiveKey }) => {
-    const isSensitive = sensitive && !sensitiveDataVisible[sensitiveKey];
-    const displayValue = isSensitive ? '••••••••' : value;
-    
-    return (
-      <View style={{ 
-        backgroundColor: '#1e293b', 
-        borderRadius: 10, 
-        padding: 16,
-        marginBottom: 12,
-        borderWidth: 1,
-        borderColor: '#334155',
-      }}
-      accessible={true}
-      accessibilityLabel={`${label}: ${isSensitive ? 'Hidden' : value || 'Not available'}`}
-      accessibilityRole="text"
-      >
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-              <Icon color="#64748b" size={16} />
-              <Text style={{ color: '#64748b', fontSize: 12, fontWeight: '600', marginLeft: 8 }}>
-                {label}
-              </Text>
-            </View>
-            <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '500' }}>
-              {displayValue || 'N/A'}
-            </Text>
-          </View>
-          
-          <View style={{ flexDirection: 'row', gap: 8, marginLeft: 8 }}>
-            {sensitive && (
-              <TouchableOpacity
-                onPress={() => toggleSensitiveData(sensitiveKey)}
-                style={{ padding: 8 }}
-                accessibilityLabel={isSensitive ? `Show ${label}` : `Hide ${label}`}
-                accessibilityRole="button"
-              >
-                {isSensitive ? (
-                  <Eye color="#64748b" size={16} />
-                ) : (
-                  <EyeOff color="#64748b" size={16} />
-                )}
-              </TouchableOpacity>
-            )}
-            
-            {onCopy && value && (
-              <TouchableOpacity
-                onPress={() => onCopy(value, label)}
-                style={{ padding: 8 }}
-                accessibilityLabel={`Copy ${label}`}
-                accessibilityRole="button"
-              >
-                <Copy color="#64748b" size={16} />
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-      </View>
-    );
-  };
-
-  return (
-    <View>
-      <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>
-        Task Information
-      </Text>
-
-      <InfoCard 
-        icon={User} 
-        label="Debtor Name" 
-        value={taskData.debtorName}
-        onCopy={copyToClipboard}
-      />
-
-      <InfoCard 
-        icon={Phone} 
-        label="Phone Number" 
-        value={taskData.debtorPhone}
-        onCopy={copyToClipboard}
-        sensitive={true}
-        sensitiveKey="phone"
-      />
-
-      <InfoCard 
-        icon={MapPin} 
-        label="Address" 
-        value={taskData.debtorAddress || taskData.address}
-        sensitive={true}
-        sensitiveKey="address"
-      />
-
-      <InfoCard 
-        icon={Calendar} 
-        label="Scheduled Date" 
-        value={formatDate(taskData.scheduledDate)}
-      />
-
-      <InfoCard 
-        icon={Clock} 
-        label="Scheduled Time" 
-        value={formatTime(taskData.scheduledTime)}
-      />
-
-      <InfoCard 
-        icon={DollarSign} 
-        label="Expected Amount" 
-        value={formatCurrency(taskData.expectedAmount)}
-      />
-
-      <InfoCard 
-        icon={DollarSign} 
-        label="Amount Collected" 
-        value={formatCurrency(taskData.actualAmountCollected || 0)}
-      />
-
-      <InfoCard 
-        icon={Clock} 
-        label="Estimated Duration" 
-        value={taskData.estimatedDuration ? `${taskData.estimatedDuration} mins` : 'N/A'}
-      />
-
-      {taskData.actualDuration && (
-        <InfoCard 
-          icon={Clock} 
-          label="Actual Duration" 
-          value={`${taskData.actualDuration} mins`}
-        />
-      )}
-
-      <InfoCard 
-        icon={ClipboardList} 
-        label="Visit Type" 
-        value={taskData.visitType ? taskData.visitType.replace(/_/g, ' ').toUpperCase() : 'N/A'}
-      />
-
-      <InfoCard 
-        icon={CheckCircle} 
-        label="Status" 
-        value={taskData.status ? taskData.status.replace(/_/g, ' ').toUpperCase() : 'N/A'}
-      />
-
-      {taskData.instructions && (
-        <View style={{ 
-          backgroundColor: '#1e293b', 
-          borderRadius: 10, 
-          padding: 16,
-          marginBottom: 12,
-          borderWidth: 1,
-          borderColor: '#334155',
-        }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-            <FileText color="#64748b" size={16} />
-            <Text style={{ color: '#64748b', fontSize: 12, fontWeight: '600', marginLeft: 8 }}>
-              Instructions
-            </Text>
-          </View>
-          <Text style={{ color: '#ffffff', fontSize: 14, lineHeight: 20 }}>
-            {taskData.instructions}
-          </Text>
-        </View>
-      )}
-
-      {taskData.notes && (
-        <View style={{ 
-          backgroundColor: '#1e293b', 
-          borderRadius: 10, 
-          padding: 16,
-          marginBottom: 12,
-          borderWidth: 1,
-          borderColor: '#334155',
-        }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-            <FileText color="#64748b" size={16} />
-            <Text style={{ color: '#64748b', fontSize: 12, fontWeight: '600', marginLeft: 8 }}>
-              Notes
-            </Text>
-          </View>
-          <Text style={{ color: '#ffffff', fontSize: 14, lineHeight: 20 }}>
-            {taskData.notes}
-          </Text>
-        </View>
-      )}
-
-      {taskData.outcome && (
-        <View style={{ 
-          backgroundColor: '#1e293b', 
-          borderRadius: 10, 
-          padding: 16,
-          marginBottom: 12,
-          borderWidth: 1,
-          borderColor: '#334155',
-        }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-            <CheckCircle color="#64748b" size={16} />
-            <Text style={{ color: '#64748b', fontSize: 12, fontWeight: '600', marginLeft: 8 }}>
-              Outcome
-            </Text>
-          </View>
-          <Text style={{ color: '#ffffff', fontSize: 14, lineHeight: 20 }}>
-            {taskData.outcome}
-          </Text>
-        </View>
-      )}
-
-      <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: 'bold', marginTop: 8, marginBottom: 16 }}>
-        Timing Information
-      </Text>
-
-      {taskData.actualStartTime && (
-        <InfoCard 
-          icon={Clock} 
-          label="Start Time" 
-          value={formatTime(taskData.actualStartTime)}
-        />
-      )}
-
-      {taskData.actualEndTime && (
-        <InfoCard 
-          icon={Clock} 
-          label="End Time" 
-          value={formatTime(taskData.actualEndTime)}
-        />
-      )}
-
-      <InfoCard 
-        icon={Calendar} 
-        label="Created Date" 
-        value={formatDate(taskData.createdDate)}
-      />
-
-      <InfoCard 
-        icon={Calendar} 
-        label="Last Updated" 
-        value={formatDate(taskData.updatedDate)}
-      />
-
-      {agent?.name && (
-        <View>
-          <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: 'bold', marginTop: 8, marginBottom: 16 }}>
-            Assigned Agent
-          </Text>
-
-          <InfoCard 
-            icon={User} 
-            label="Agent Name" 
-            value={agent.name}
-          />
-
-          {agent.phoneNumber && (
-            <InfoCard 
-              icon={Phone} 
-              label="Agent Phone" 
-              value={agent.phoneNumber}
-            />
-          )}
-
-          {agent.staffNo && (
-            <InfoCard 
-              icon={FileText} 
-              label="Staff Number" 
-              value={agent.staffNo}
-            />
-          )}
-        </View>
-      )}
-    </View>
-  );
-}
-
-// Products Tab Component
+// Products Tab
 function ProductsTab({ caseId, formatCurrency }) {
-  const { data: products, isLoading, error } = useQuery({
+  const { data: rawData, isLoading } = useQuery({
     queryKey: ['case-products', caseId],
     queryFn: () => casesService.getCaseProducts(caseId),
-    enabled: !!caseId,
+    enabled: !!caseId, 
   });
 
-  if (!caseId) {
-    return (
-      <View>
-        <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>
-          Products
-        </Text>
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 60 }}>
-          <Package color="#64748b" size={48} />
-          <Text style={{ color: '#64748b', fontSize: 14, marginTop: 16, textAlign: 'center' }}>
-            No case ID associated with this task
-          </Text>
-        </View>
-      </View>
-    );
+  if (!caseId) return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 60 }}><Package color="#64748b" size={48} /><Text style={{ color: '#64748b', fontSize: 14, marginTop: 16 }}>No Case ID linked</Text></View>;
+  if (isLoading) return <View style={{ paddingVertical: 40, alignItems: 'center' }}><ActivityIndicator size="large" color="#3b82f6" /><Text style={{ color: '#64748b', marginTop: 12 }}>Loading products...</Text></View>;
+
+  let productList = [];
+  if (rawData) {
+    if (Array.isArray(rawData)) productList = rawData;
+    else if (Array.isArray(rawData.data)) productList = rawData.data;
+    else if (Array.isArray(rawData.items)) productList = rawData.items;
+    else if (Array.isArray(rawData.products)) productList = rawData.products;
+    else if (rawData.id || rawData.contractNumber) productList = [rawData];
   }
 
-  if (isLoading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
-        <ActivityIndicator size="large" color="#3b82f6" />
-        <Text style={{ color: '#64748b', fontSize: 14, marginTop: 16 }}>Loading products...</Text>
-      </View>
-    );
-  }
-
-  if (error || !products || (Array.isArray(products) && products.length === 0)) {
-    return (
-      <View>
-        <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>
-          Products
-        </Text>
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 60 }}>
-          <Package color="#64748b" size={48} />
-          <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600', marginTop: 16 }}>
-            No Products
-          </Text>
-          <Text style={{ color: '#64748b', fontSize: 14, marginTop: 8 }}>
-            No products found for this case
-          </Text>
-        </View>
-      </View>
-    );
-  }
-
-  const productList = Array.isArray(products) ? products : [products];
+  if (productList.length === 0) return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 60 }}><Package color="#64748b" size={48} /><Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600', marginTop: 16 }}>No Products</Text></View>;
 
   return (
     <View>
-      <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>
-        Products ({productList.length})
-      </Text>
-
+      <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>Products ({productList.length})</Text>
       {productList.map((product, index) => (
-        <View 
-          key={product.id || index}
-          style={{ 
-            backgroundColor: '#1e293b', 
-            borderRadius: 10, 
-            padding: 16,
-            marginBottom: 12,
-            borderWidth: 1,
-            borderColor: '#334155',
-          }}
-        >
+        <View key={product.id || index} style={{ backgroundColor: '#1e293b', borderRadius: 10, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#334155' }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
             <Package color="#3b82f6" size={20} />
-            <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600', marginLeft: 8 }}>
-              {product.name || product.productName || product.sourceOfDebt || 'Product'}
-            </Text>
+            <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600', marginLeft: 8 }}>{product.name || product.productName || product.sourceOfDebt || 'Product'}</Text>
           </View>
-
           <View style={{ gap: 8 }}>
-            {product.contractNumber && (
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Text style={{ color: '#64748b', fontSize: 14 }}>Contract Number:</Text>
-                <Text style={{ color: '#ffffff', fontSize: 14, fontWeight: '500' }}>
-                  {product.contractNumber}
-                </Text>
-              </View>
-            )}
-
-            {product.totalAmount !== undefined && (
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Text style={{ color: '#64748b', fontSize: 14 }}>Total Amount:</Text>
-                <Text style={{ color: '#ffffff', fontSize: 14, fontWeight: '500' }}>
-                  {formatCurrency(product.totalAmount)}
-                </Text>
-              </View>
-            )}
-
-            {product.fees !== undefined && (
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Text style={{ color: '#64748b', fontSize: 14 }}>Fees:</Text>
-                <Text style={{ color: '#ffffff', fontSize: 14, fontWeight: '500' }}>
-                  {formatCurrency(product.fees)}
-                </Text>
-              </View>
-            )}
-
-            {product.description && (
-              <View style={{ marginTop: 8 }}>
-                <Text style={{ color: '#64748b', fontSize: 12, marginBottom: 4 }}>Description:</Text>
-                <Text style={{ color: '#ffffff', fontSize: 13, lineHeight: 18 }}>
-                  {product.description}
-                </Text>
-              </View>
-            )}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Text style={{ color: '#64748b', fontSize: 14 }}>Contract:</Text><Text style={{ color: '#ffffff', fontSize: 14 }}>{product.contractNumber}</Text></View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Text style={{ color: '#64748b', fontSize: 14 }}>Total Amount:</Text><Text style={{ color: '#ffffff', fontSize: 14 }}>{formatCurrency(product.totalAmount || product.amount)}</Text></View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Text style={{ color: '#64748b', fontSize: 14 }}>Fees:</Text><Text style={{ color: '#ffffff', fontSize: 14 }}>{formatCurrency(product.fees || 0)}</Text></View>
           </View>
         </View>
       ))}
@@ -736,219 +263,410 @@ function ProductsTab({ caseId, formatCurrency }) {
   );
 }
 
-// Documents Tab Component - Now shows both documents and photos
+// ===========================================
+//  DOCUMENTS TAB WITH CAMERA UPLOAD (FIXED)
+// ===========================================
 function DocumentsTab({ taskId }) {
-  const [allFiles, setAllFiles] = React.useState([]);
+  const [documents, setDocuments] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
-  const [previewFile, setPreviewFile] = React.useState(null);
-  const [loadingPreview, setLoadingPreview] = React.useState(false);
+  const [downloadingIds, setDownloadingIds] = React.useState({});
+  const [uploading, setUploading] = React.useState(false);
 
-  React.useEffect(() => {
-    fetchAllFiles();
-  }, [taskId]);
+  React.useEffect(() => { fetchDocuments(); }, [taskId]);
 
-  const fetchAllFiles = async () => {
+  const fetchDocuments = async () => {
     try {
       const docs = await tasksService.getTaskAttachments(taskId);
-      // Show all files - both documents and images
-      const fileList = Array.isArray(docs) ? docs : [];
-      setAllFiles(fileList);
-    } catch (error) {
-      console.error('Failed to fetch files:', error);
-    } finally {
-      setLoading(false);
+      setDocuments(Array.isArray(docs) ? docs : []);
+    } catch (error) { 
+      console.error('Failed to fetch documents:', error); 
+    } finally { 
+      setLoading(false); 
     }
   };
 
-  const isImageFile = (fileName) => {
-    const ext = fileName?.toLowerCase().split('.').pop();
-    return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(ext);
-  };
-
-  const handleFilePress = async (file) => {
-    setLoadingPreview(true);
+  const handleLaunchCamera = async () => {
     try {
-      const details = await tasksService.getAttachmentDetails(taskId, file.id);
-      setPreviewFile({ ...file, ...details, isImage: isImageFile(file.name) });
-    } catch (error) {
-      Alert.alert('Error', 'Failed to load file preview');
-    } finally {
-      setLoadingPreview(false);
+      const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permissionResult.granted) { 
+        Alert.alert("Permission Required", "Camera access is needed to take photos."); 
+        return; 
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false, 
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        await handleUpload(result.assets[0]);
+      }
+    } catch (error) { 
+      console.error("Camera Error:", error);
+      Alert.alert("Error", "Could not open camera."); 
     }
   };
 
-  const closePreview = () => {
-    if (previewFile?.url) {
-      URL.revokeObjectURL(previewFile.url);
+  const handleUpload = async (photo) => {
+    setUploading(true);
+    try {
+      const token = await authService.getToken();
+      if (!token) throw new Error("Unauthorized");
+
+      const photoUri = photo.uri;
+      
+      // Extract original filename or create one
+      const originalFileName = photo.fileName || `photo_${Date.now()}.jpg`;
+      
+      // Get file info to determine size
+      const fileInfo = await FileSystem.getInfoAsync(photoUri);
+      
+      console.log('Uploading file:', {
+        uri: photoUri,
+        name: originalFileName,
+        size: fileInfo.size
+      });
+
+      const uploadUrl = `https://dev.collpro.uz/api/field-visit/tasks/${taskId}/attachments`;
+
+      // Create FormData manually with all required fields
+      const formData = new FormData();
+      
+      // Append the file with proper structure
+      formData.append('file', {
+        uri: photoUri,
+        type: 'image/jpeg',
+        name: originalFileName,
+      });
+
+      // Optional: Add description (matching web implementation)
+      formData.append('description', `${originalFileName} uploaded from field visit`);
+      
+      // Optional: Add attachment type
+      formData.append('attachmentType', 'photo');
+
+      // Use XMLHttpRequest for better compatibility
+      const uploadPromise = new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        
+        xhr.onload = () => {
+          console.log('Upload response status:', xhr.status);
+          console.log('Upload response:', xhr.responseText);
+          
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const response = JSON.parse(xhr.responseText);
+              resolve(response);
+            } catch (e) {
+              resolve({ success: true });
+            }
+          } else {
+            reject(new Error(`Upload failed with status ${xhr.status}: ${xhr.responseText}`));
+          }
+        };
+        
+        xhr.onerror = () => {
+          console.error('XHR Error');
+          reject(new Error('Network error during upload'));
+        };
+        
+        xhr.ontimeout = () => {
+          console.error('XHR Timeout');
+          reject(new Error('Upload timeout'));
+        };
+        
+        xhr.open('POST', uploadUrl);
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        // Don't set Content-Type - let the browser/runtime set it with boundary
+        
+        xhr.send(formData);
+      });
+
+      const result = await uploadPromise;
+      console.log('Upload successful:', result);
+
+      Alert.alert("Success", "Photo uploaded successfully!");
+      setLoading(true);
+      await fetchDocuments();
+
+    } catch (error) {
+      console.error("Upload Error:", error);
+      Alert.alert("Upload Failed", error.message || "Could not upload photo.");
+    } finally {
+      setUploading(false);
     }
-    setPreviewFile(null);
+  };
+
+  const handleDownload = async (doc) => {
+    setDownloadingIds(prev => ({ ...prev, [doc.id]: true }));
+    try {
+      const token = await authService.getToken();
+      if (!token) throw new Error("Unauthorized");
+      
+      if (Platform.OS === 'android') {
+        const { status } = await MediaLibrary.requestPermissionsAsync(true);
+        if (status !== 'granted') {
+          Alert.alert("Permission needed", "We need access to save this file.");
+          setDownloadingIds(prev => ({ ...prev, [doc.id]: false }));
+          return;
+        }
+      }
+
+      let fileName = doc.originalName || doc.fileName || `task_doc_${doc.id}`;
+      fileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+      
+      const hasExtension = fileName.includes('.');
+      if (!hasExtension && doc.mimeType) {
+        const mimeMap = {
+          'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png',
+          'application/msword': 'doc', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+          'application/vnd.ms-excel': 'xls', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+        };
+        const ext = mimeMap[doc.mimeType];
+        if (ext) fileName += `.${ext}`;
+      }
+
+      const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+      const downloadUrl = tasksService.getAttachmentDownloadUrl(doc.id); 
+      
+      const downloadResumable = FileSystem.createDownloadResumable(
+        downloadUrl, 
+        fileUri, 
+        { headers: { 'Authorization': `Bearer ${token}` } }
+      );
+      
+      const result = await downloadResumable.downloadAsync();
+      if (!result || !result.uri) throw new Error("Download failed");
+
+      const isImage = isMediaFile(fileName);
+      if (isImage) {
+        await MediaLibrary.saveToLibraryAsync(result.uri);
+        Alert.alert("Saved!", "Image saved to your Gallery.");
+      } else if (Platform.OS === 'android') {
+        try {
+          const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+          if (permissions.granted) {
+            const base64Data = await FileSystem.readAsStringAsync(result.uri, { encoding: FileSystem.EncodingType.Base64 });
+            const newFileUri = await FileSystem.StorageAccessFramework.createFileAsync(
+              permissions.directoryUri, fileName, doc.mimeType || 'application/octet-stream'
+            );
+            await FileSystem.writeAsStringAsync(newFileUri, base64Data, { encoding: FileSystem.EncodingType.Base64 });
+            Alert.alert("Success", "File saved.");
+          } else {
+            await Sharing.shareAsync(result.uri);
+          }
+        } catch (e) {
+          await Sharing.shareAsync(result.uri);
+        }
+      } else {
+        await Sharing.shareAsync(result.uri, { UTI: doc.mimeType, dialogTitle: fileName });
+      }
+
+    } catch (error) {
+      console.error('Download error:', error);
+      Alert.alert('Error', 'Failed to download.');
+    } finally {
+      setDownloadingIds(prev => ({ ...prev, [doc.id]: false }));
+    }
   };
 
   const getFileIcon = (fileName) => {
     const ext = fileName?.toLowerCase().split('.').pop();
-    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(ext)) return '🖼️';
     switch(ext) {
       case 'pdf': return '📄';
-      case 'doc':
-      case 'docx': return '📝';
-      case 'xls':
-      case 'xlsx': return '📊';
-      case 'txt': return '📃';
+      case 'doc': case 'docx': return '📝';
+      case 'xls': case 'xlsx': return '📊';
+      case 'jpg': case 'jpeg': case 'png': return '🖼️';
       default: return '📎';
     }
   };
 
-  if (loading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
-        <ActivityIndicator size="large" color="#3b82f6" />
-      </View>
-    );
-  }
+  if (loading) return <ActivityIndicator size="large" color="#3b82f6" style={{ marginTop: 40 }} />;
 
-  if (allFiles.length === 0) {
+  if (documents.length === 0) {
     return (
-      <View>
-        <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>
-          Documents & Photos
-        </Text>
-        
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 60 }}>
-          <FileText color="#64748b" size={48} />
-          <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600', marginTop: 16 }}>
-            No Files
-          </Text>
-          <Text style={{ color: '#64748b', fontSize: 14, marginTop: 8 }}>
-            No documents or photos have been uploaded for this task
-          </Text>
-        </View>
+      <View style={{ alignItems: 'center', paddingVertical: 60 }}>
+        <FileText color="#64748b" size={48} />
+        <Text style={{ color: '#64748b', marginTop: 16 }}>No attachments found</Text>
       </View>
     );
   }
 
   return (
     <View>
-      <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>
-        Documents & Photos ({allFiles.length})
-      </Text>
+      {/* BIG CAMERA UPLOAD BUTTON */}
+      <TouchableOpacity 
+        onPress={handleLaunchCamera} 
+        disabled={uploading}
+        style={{ 
+          backgroundColor: '#3b82f6', 
+          borderRadius: 12, 
+          paddingVertical: 18, 
+          flexDirection: 'row', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          marginBottom: 24,
+          gap: 12,
+          borderWidth: 2,
+          borderColor: '#60a5fa',
+          shadowColor: '#3b82f6',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.3,
+          shadowRadius: 8,
+          elevation: 8
+        }}
+      >
+        {uploading ? (
+          <>
+            <ActivityIndicator color="#ffffff" size="small" />
+            <Text style={{ color: '#ffffff', fontSize: 17, fontWeight: '700' }}>Uploading...</Text>
+          </>
+        ) : (
+          <>
+            <Camera color="#ffffff" size={28} strokeWidth={2.5} />
+            <Text style={{ color: '#ffffff', fontSize: 17, fontWeight: '700' }}>Add Attachment</Text>
+          </>
+        )}
+      </TouchableOpacity>
 
-      {allFiles.map((file, index) => {
-        const isImage = isImageFile(file.name);
+      <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>
+        Documents & Photos ({documents.length})
+      </Text>
+      {documents.map((doc, index) => {
+        const docName = doc.originalName || doc.fileName || `File ${index + 1}`;
+        const isMedia = isMediaFile(docName);
+
         return (
-          <TouchableOpacity
-            key={file.id || index}
-            onPress={() => handleFilePress(file)}
-            style={{ 
-              backgroundColor: '#1e293b', 
-              borderRadius: 10, 
-              padding: 16,
-              marginBottom: 12,
-              borderWidth: 1,
-              borderColor: '#334155',
-              flexDirection: 'row',
-              alignItems: 'center',
-            }}
-            accessibilityLabel={`${isImage ? 'Photo' : 'Document'}: ${file.name || `File ${index + 1}`}`}
-            accessibilityRole="button"
-          >
-            <Text style={{ fontSize: 32, marginRight: 12 }}>
-              {getFileIcon(file.name)}
-            </Text>
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '500' }}>
-                {file.name || `File ${index + 1}`}
-              </Text>
-              <Text style={{ color: '#64748b', fontSize: 12, marginTop: 2 }}>
-                {isImage ? 'Image' : (file.type || file.mimeType || 'Document')} {file.size ? `• ${file.size}` : ''}
-              </Text>
+          <View key={doc.id || index} style={{ backgroundColor: '#1e293b', borderRadius: 10, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#334155' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={{ fontSize: 32, marginRight: 12 }}>{getFileIcon(docName)}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '500' }}>{docName}</Text>
+                <Text style={{ color: '#64748b', fontSize: 12 }}>{doc.mimeType || 'File'}</Text>
+              </View>
+              
+              <TouchableOpacity
+                onPress={() => handleDownload(doc)}
+                disabled={downloadingIds[doc.id]}
+                style={{
+                  backgroundColor: downloadingIds[doc.id] ? '#1e293b' : '#3b82f6',
+                  paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8,
+                  flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: 8, minWidth: 100, justifyContent: 'center'
+                }}
+              >
+                {downloadingIds[doc.id] ? (
+                  <ActivityIndicator size="small" color="#3b82f6" />
+                ) : (
+                  <>
+                    {isMedia ? <ImageIcon color="#ffffff" size={16} /> : <Download color="#ffffff" size={16} />}
+                    <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '600' }}>
+                      {isMedia ? "Gallery" : "Save File"}
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
             </View>
-            {isImage ? (
-              <Eye color="#3b82f6" size={20} />
-            ) : (
-              <Download color="#3b82f6" size={20} />
-            )}
-          </TouchableOpacity>
+          </View>
         );
       })}
+    </View>
+  );
+}
 
-      {/* File Preview Modal */}
-      <Modal
-        visible={!!previewFile}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={closePreview}
-      >
-        <View style={{ 
-          flex: 1, 
-          backgroundColor: 'rgba(0,0,0,0.95)',
-          justifyContent: 'center',
-          alignItems: 'center'
-        }}>
-          <View style={{ 
-            position: 'absolute',
-            top: 40,
-            right: 20,
-            zIndex: 10
-          }}>
-            <TouchableOpacity
-              onPress={closePreview}
-              style={{
-                backgroundColor: '#1e293b',
-                padding: 12,
-                borderRadius: 8,
-              }}
-              accessibilityLabel="Close preview"
-              accessibilityRole="button"
-            >
-              <X color="#ffffff" size={24} />
-            </TouchableOpacity>
-          </View>
-
-          {loadingPreview ? (
-            <ActivityIndicator size="large" color="#3b82f6" />
-          ) : previewFile?.isImage && previewFile?.url ? (
-            <ScrollView
-              contentContainerStyle={{
-                flex: 1,
-                justifyContent: 'center',
-                alignItems: 'center',
-                paddingVertical: 80,
-              }}
-              maximumZoomScale={3}
-              minimumZoomScale={1}
-            >
-              <Image
-                source={{ uri: previewFile.url }}
-                style={{ 
-                  width: width - 40,
-                  height: width - 40,
-                }}
-                resizeMode="contain"
-              />
-              <Text style={{ 
-                color: '#ffffff', 
-                fontSize: 14, 
-                marginTop: 20,
-                textAlign: 'center'
-              }}>
-                {previewFile.name}
-              </Text>
-            </ScrollView>
-          ) : (
-            <View style={{ width: '90%', height: '80%', justifyContent: 'center', alignItems: 'center' }}>
-              <Text style={{ color: '#ffffff', fontSize: 16, marginBottom: 20 }}>
-                {previewFile?.name}
-              </Text>
-              <Text style={{ color: '#64748b', fontSize: 14 }}>
-                Document preview not available
-              </Text>
-              <Text style={{ color: '#64748b', fontSize: 12, marginTop: 8 }}>
-                Please download the file to view
-              </Text>
+// Task Info Component (unchanged)
+function TaskInfoTab({ taskData, agent, formatCurrency, formatDate, formatTime, copyToClipboard, sensitiveDataVisible, toggleSensitiveData }) {
+    const InfoCard = ({ icon: Icon, label, value, onCopy, sensitive, sensitiveKey }) => {
+        const isSensitive = sensitive && !sensitiveDataVisible[sensitiveKey];
+        const displayValue = isSensitive ? '••••••••' : value;
+        return (
+          <View style={{ backgroundColor: '#1e293b', borderRadius: 10, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#334155' }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                  <Icon color="#64748b" size={16} />
+                  <Text style={{ color: '#64748b', fontSize: 12, fontWeight: '600', marginLeft: 8 }}>{label}</Text>
+                </View>
+                <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '500' }}>{displayValue || 'N/A'}</Text>
+              </View>
+              <View style={{ flexDirection: 'row', gap: 8, marginLeft: 8 }}>
+                {sensitive && (
+                  <TouchableOpacity onPress={() => toggleSensitiveData(sensitiveKey)} style={{ padding: 8 }}>
+                    {isSensitive ? <Eye color="#64748b" size={16} /> : <EyeOff color="#64748b" size={16} />}
+                  </TouchableOpacity>
+                )}
+                {onCopy && value && (
+                  <TouchableOpacity onPress={() => onCopy(value, label)} style={{ padding: 8 }}>
+                    <Copy color="#64748b" size={16} />
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
-          )}
+          </View>
+        );
+      };
+  return (
+    <View>
+      <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>
+        Task Information
+      </Text>
+
+      <InfoCard icon={User} label="Debtor Name" value={taskData.debtorName} onCopy={copyToClipboard} />
+      <InfoCard icon={Phone} label="Phone Number" value={taskData.debtorPhone} onCopy={copyToClipboard} sensitive={true} sensitiveKey="phone" />
+      <InfoCard icon={MapPin} label="Address" value={taskData.debtorAddress || taskData.address} sensitive={true} sensitiveKey="address" />
+      <InfoCard icon={Calendar} label="Scheduled Date" value={formatDate(taskData.scheduledDate)} />
+      <InfoCard icon={Clock} label="Scheduled Time" value={formatTime(taskData.scheduledTime)} />
+      <InfoCard icon={DollarSign} label="Expected Amount" value={formatCurrency(taskData.expectedAmount)} />
+      <InfoCard icon={DollarSign} label="Amount Collected" value={formatCurrency(taskData.actualAmountCollected || 0)} />
+      <InfoCard icon={Clock} label="Estimated Duration" value={taskData.estimatedDuration ? `${taskData.estimatedDuration} mins` : 'N/A'} />
+      {taskData.actualDuration && <InfoCard icon={Clock} label="Actual Duration" value={`${taskData.actualDuration} mins`} />}
+      <InfoCard icon={ClipboardList} label="Visit Type" value={taskData.visitType ? taskData.visitType.replace(/_/g, ' ').toUpperCase() : 'N/A'} />
+      <InfoCard icon={CheckCircle} label="Status" value={taskData.status ? taskData.status.replace(/_/g, ' ').toUpperCase() : 'N/A'} />
+
+      {taskData.instructions && (
+        <View style={{ backgroundColor: '#1e293b', borderRadius: 10, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#334155' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+            <FileText color="#64748b" size={16} />
+            <Text style={{ color: '#64748b', fontSize: 12, fontWeight: '600', marginLeft: 8 }}>Instructions</Text>
+          </View>
+          <Text style={{ color: '#ffffff', fontSize: 14, lineHeight: 20 }}>{taskData.instructions}</Text>
         </View>
-      </Modal>
+      )}
+
+      {taskData.notes && (
+        <View style={{ backgroundColor: '#1e293b', borderRadius: 10, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#334155' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+            <FileText color="#64748b" size={16} />
+            <Text style={{ color: '#64748b', fontSize: 12, fontWeight: '600', marginLeft: 8 }}>Notes</Text>
+          </View>
+          <Text style={{ color: '#ffffff', fontSize: 14, lineHeight: 20 }}>{taskData.notes}</Text>
+        </View>
+      )}
+
+      {taskData.outcome && (
+        <View style={{ backgroundColor: '#1e293b', borderRadius: 10, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#334155' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+            <CheckCircle color="#64748b" size={16} />
+            <Text style={{ color: '#64748b', fontSize: 12, fontWeight: '600', marginLeft: 8 }}>Outcome</Text>
+          </View>
+          <Text style={{ color: '#ffffff', fontSize: 14, lineHeight: 20 }}>{taskData.outcome}</Text>
+        </View>
+      )}
+
+      <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: 'bold', marginTop: 8, marginBottom: 16 }}>Timing Information</Text>
+      {taskData.actualStartTime && <InfoCard icon={Clock} label="Start Time" value={formatTime(taskData.actualStartTime)} />}
+      {taskData.actualEndTime && <InfoCard icon={Clock} label="End Time" value={formatTime(taskData.actualEndTime)} />}
+      <InfoCard icon={Calendar} label="Created Date" value={formatDate(taskData.createdDate)} />
+      <InfoCard icon={Calendar} label="Last Updated" value={formatDate(taskData.updatedDate)} />
+
+      {agent?.name && (
+        <View>
+          <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: 'bold', marginTop: 8, marginBottom: 16 }}>Assigned Agent</Text>
+          <InfoCard icon={User} label="Agent Name" value={agent.name} />
+          {agent.phoneNumber && <InfoCard icon={Phone} label="Agent Phone" value={agent.phoneNumber} />}
+          {agent.staffNo && <InfoCard icon={FileText} label="Staff Number" value={agent.staffNo} />}
+        </View>
+      )}
     </View>
   );
 }
