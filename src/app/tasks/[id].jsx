@@ -263,9 +263,6 @@ function ProductsTab({ caseId, formatCurrency }) {
   );
 }
 
-// ===========================================
-//  DOCUMENTS TAB WITH CAMERA UPLOAD (FIXED)
-// ===========================================
 function DocumentsTab({ taskId }) {
   const [documents, setDocuments] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
@@ -315,77 +312,38 @@ function DocumentsTab({ taskId }) {
       if (!token) throw new Error("Unauthorized");
 
       const photoUri = photo.uri;
-      
-      // Extract original filename or create one
       const originalFileName = photo.fileName || `photo_${Date.now()}.jpg`;
-      
-      // Get file info to determine size
       const fileInfo = await FileSystem.getInfoAsync(photoUri);
       
-      console.log('Uploading file:', {
-        uri: photoUri,
-        name: originalFileName,
-        size: fileInfo.size
-      });
+      console.log('Uploading file:', { uri: photoUri, name: originalFileName, size: fileInfo.size });
 
       const uploadUrl = `https://dev.collpro.uz/api/field-visit/tasks/${taskId}/attachments`;
 
-      // Create FormData manually with all required fields
       const formData = new FormData();
-      
-      // Append the file with proper structure
       formData.append('file', {
         uri: photoUri,
         type: 'image/jpeg',
         name: originalFileName,
       });
-
-      // Optional: Add description (matching web implementation)
       formData.append('description', `${originalFileName} uploaded from field visit`);
-      
-      // Optional: Add attachment type
       formData.append('attachmentType', 'photo');
 
-      // Use XMLHttpRequest for better compatibility
       const uploadPromise = new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        
         xhr.onload = () => {
-          console.log('Upload response status:', xhr.status);
-          console.log('Upload response:', xhr.responseText);
-          
           if (xhr.status >= 200 && xhr.status < 300) {
-            try {
-              const response = JSON.parse(xhr.responseText);
-              resolve(response);
-            } catch (e) {
-              resolve({ success: true });
-            }
+            try { resolve(JSON.parse(xhr.responseText)); } catch (e) { resolve({ success: true }); }
           } else {
             reject(new Error(`Upload failed with status ${xhr.status}: ${xhr.responseText}`));
           }
         };
-        
-        xhr.onerror = () => {
-          console.error('XHR Error');
-          reject(new Error('Network error during upload'));
-        };
-        
-        xhr.ontimeout = () => {
-          console.error('XHR Timeout');
-          reject(new Error('Upload timeout'));
-        };
-        
+        xhr.onerror = () => reject(new Error('Network error during upload'));
         xhr.open('POST', uploadUrl);
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-        // Don't set Content-Type - let the browser/runtime set it with boundary
-        
         xhr.send(formData);
       });
 
-      const result = await uploadPromise;
-      console.log('Upload successful:', result);
-
+      await uploadPromise;
       Alert.alert("Success", "Photo uploaded successfully!");
       setLoading(true);
       await fetchDocuments();
@@ -431,9 +389,7 @@ function DocumentsTab({ taskId }) {
       const downloadUrl = tasksService.getAttachmentDownloadUrl(doc.id); 
       
       const downloadResumable = FileSystem.createDownloadResumable(
-        downloadUrl, 
-        fileUri, 
-        { headers: { 'Authorization': `Bearer ${token}` } }
+        downloadUrl, fileUri, { headers: { 'Authorization': `Bearer ${token}` } }
       );
       
       const result = await downloadResumable.downloadAsync();
@@ -462,7 +418,6 @@ function DocumentsTab({ taskId }) {
       } else {
         await Sharing.shareAsync(result.uri, { UTI: doc.mimeType, dialogTitle: fileName });
       }
-
     } catch (error) {
       console.error('Download error:', error);
       Alert.alert('Error', 'Failed to download.');
@@ -484,18 +439,9 @@ function DocumentsTab({ taskId }) {
 
   if (loading) return <ActivityIndicator size="large" color="#3b82f6" style={{ marginTop: 40 }} />;
 
-  if (documents.length === 0) {
-    return (
-      <View style={{ alignItems: 'center', paddingVertical: 60 }}>
-        <FileText color="#64748b" size={48} />
-        <Text style={{ color: '#64748b', marginTop: 16 }}>No attachments found</Text>
-      </View>
-    );
-  }
-
   return (
     <View>
-      {/* BIG CAMERA UPLOAD BUTTON */}
+      {/* 1. UPLOAD BUTTON (Always Visible) */}
       <TouchableOpacity 
         onPress={handleLaunchCamera} 
         disabled={uploading}
@@ -533,43 +479,52 @@ function DocumentsTab({ taskId }) {
       <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>
         Documents & Photos ({documents.length})
       </Text>
-      {documents.map((doc, index) => {
-        const docName = doc.originalName || doc.fileName || `File ${index + 1}`;
-        const isMedia = isMediaFile(docName);
 
-        return (
-          <View key={doc.id || index} style={{ backgroundColor: '#1e293b', borderRadius: 10, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#334155' }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Text style={{ fontSize: 32, marginRight: 12 }}>{getFileIcon(docName)}</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '500' }}>{docName}</Text>
-                <Text style={{ color: '#64748b', fontSize: 12 }}>{doc.mimeType || 'File'}</Text>
+      {/* 2. CONDITIONAL RENDERING: Empty State OR List */}
+      {documents.length === 0 ? (
+        <View style={{ alignItems: 'center', paddingVertical: 40, opacity: 0.8 }}>
+          <FileText color="#64748b" size={48} />
+          <Text style={{ color: '#64748b', marginTop: 16, fontSize: 15 }}>No attachments found</Text>
+        </View>
+      ) : (
+        documents.map((doc, index) => {
+          const docName = doc.originalName || doc.fileName || `File ${index + 1}`;
+          const isMedia = isMediaFile(docName);
+
+          return (
+            <View key={doc.id || index} style={{ backgroundColor: '#1e293b', borderRadius: 10, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#334155' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ fontSize: 32, marginRight: 12 }}>{getFileIcon(docName)}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '500' }}>{docName}</Text>
+                  <Text style={{ color: '#64748b', fontSize: 12 }}>{doc.mimeType || 'File'}</Text>
+                </View>
+                
+                <TouchableOpacity
+                  onPress={() => handleDownload(doc)}
+                  disabled={downloadingIds[doc.id]}
+                  style={{
+                    backgroundColor: downloadingIds[doc.id] ? '#1e293b' : '#3b82f6',
+                    paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8,
+                    flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: 8, minWidth: 100, justifyContent: 'center'
+                  }}
+                >
+                  {downloadingIds[doc.id] ? (
+                    <ActivityIndicator size="small" color="#3b82f6" />
+                  ) : (
+                    <>
+                      {isMedia ? <ImageIcon color="#ffffff" size={16} /> : <Download color="#ffffff" size={16} />}
+                      <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '600' }}>
+                        {isMedia ? "Gallery" : "Save File"}
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
               </View>
-              
-              <TouchableOpacity
-                onPress={() => handleDownload(doc)}
-                disabled={downloadingIds[doc.id]}
-                style={{
-                  backgroundColor: downloadingIds[doc.id] ? '#1e293b' : '#3b82f6',
-                  paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8,
-                  flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: 8, minWidth: 100, justifyContent: 'center'
-                }}
-              >
-                {downloadingIds[doc.id] ? (
-                  <ActivityIndicator size="small" color="#3b82f6" />
-                ) : (
-                  <>
-                    {isMedia ? <ImageIcon color="#ffffff" size={16} /> : <Download color="#ffffff" size={16} />}
-                    <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '600' }}>
-                      {isMedia ? "Gallery" : "Save File"}
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
             </View>
-          </View>
-        );
-      })}
+          );
+        })
+      )}
     </View>
   );
 }

@@ -70,19 +70,7 @@ export default function TabLayout() {
         }}
       />
 
-      {/* Hidden screens */}
-      <Tabs.Screen
-        name="cases"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="tasks"
-        options={{
-          href: null,
-        }}
-      />
+    
 
       <Tabs.Screen
         name="debtor/[id]"

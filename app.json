@@ -2,6 +2,7 @@
   "expo": {
     "name": "Coll Pro",
     "version": "1.0.0",
+    "scheme": "collpro",
     "orientation": "portrait",
     "icon": "./assets/images/new-icon.png",
     "userInterfaceStyle": "automatic",
@@ -15,7 +16,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon-new-1.png",
+        "foregroundImage": "./assets/images/adaptive-icon-new-2.png",
+        "resizeMode": "contain",
         "backgroundColor": "#262b3e"
       },
       "permissions": [

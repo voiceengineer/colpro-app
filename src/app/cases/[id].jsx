@@ -10,13 +10,14 @@ import { StatusBar } from 'expo-status-bar';
 import { 
   ArrowLeft, User, Phone, MapPin, CreditCard, 
   Calendar, DollarSign, AlertCircle, FileText,
-  Package, Receipt, Mic, Copy, CheckCircle,
+  Package, Receipt, Mic, Copy, CheckCircle,Camera, Image as ImageIcon,
   Eye, EyeOff, Download,
 } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
 import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as ImagePicker from 'expo-image-picker';
 import * as Sharing from 'expo-sharing';
 import { casesService } from '../../lib/services/casesService';
 import { authService } from '../../lib/services/authService';
@@ -748,6 +749,7 @@ function PaymentsTab({ caseId, account, formatCurrency, formatDate }) {
 function DocumentsTab({ caseId }) {
   const [documents, setDocuments] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
+  const [uploading, setUploading] = React.useState(false); // New State
   const [downloadingIds, setDownloadingIds] = React.useState({});
 
   React.useEffect(() => {
@@ -757,7 +759,6 @@ function DocumentsTab({ caseId }) {
   const fetchDocuments = async () => {
     try {
       const docs = await casesService.getCaseDocuments(caseId);
-      // Now we show ALL documents (including images)
       setDocuments(Array.isArray(docs) ? docs : []);
     } catch (error) {
       console.error('Failed to fetch documents:', error);
@@ -765,96 +766,126 @@ function DocumentsTab({ caseId }) {
       setLoading(false);
     }
   };
-  const handleDownload = async (doc) => {
-    setDownloadingIds(prev => ({ ...prev, [doc.id]: true }));
 
+  // --- NEW: Camera Logic ---
+  const handleLaunchCamera = async () => {
     try {
-        const token = await authService.getToken();
-        if (!token) throw new Error("Unauthorized");
+      const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permissionResult.granted) { 
+        Alert.alert("Permission Required", "Camera access is needed to take photos."); 
+        return; 
+      }
 
-        // --- FIX IS HERE ---
-        if (Platform.OS === 'android') {
-            // Pass 'true' (boolean) for write-only permission. 
-            // Do NOT pass an object like { writeOnly: true }.
-            const { status } = await MediaLibrary.requestPermissionsAsync(true);
-            
-            if (status !== 'granted') {
-                Alert.alert("Permission needed", "We need access to save this file.");
-                setDownloadingIds(prev => ({ ...prev, [doc.id]: false }));
-                return;
-            }
-        }
-        // -------------------
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false, 
+        quality: 0.8,
+      });
 
-        let fileName = doc.originalName || doc.fileName || `document_${doc.id}`;
-        fileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
-        
-        const hasExtension = fileName.includes('.');
-        if (!hasExtension && doc.mimeType) {
-            const mimeMap = {
-                'application/pdf': 'pdf',
-                'image/jpeg': 'jpg', 'image/png': 'png',
-                'application/msword': 'doc', 
-                'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
-                'application/vnd.ms-excel': 'xls', 
-                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
-            };
-            const ext = mimeMap[doc.mimeType];
-            if (ext) fileName += `.${ext}`;
-        }
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        await handleUpload(result.assets[0]);
+      }
+    } catch (error) { 
+      console.error("Camera Error:", error);
+      Alert.alert("Error", "Could not open camera."); 
+    }
+  };
 
-        const fileUri = `${FileSystem.documentDirectory}${fileName}`;
-        const downloadUrl = casesService.getDocumentDownloadUrl(caseId, doc.id);
+  // --- NEW: Upload Logic ---
+  const handleUpload = async (photo) => {
+    setUploading(true);
+    try {
+      // We pass the URI directly to the service
+      await casesService.uploadCaseDocument(caseId, photo.uri);
 
-        const downloadResumable = FileSystem.createDownloadResumable(
-            downloadUrl,
-            fileUri,
-            {
-                headers: { 'Authorization': `Bearer ${token}` }
-            }
-        );
-
-        const result = await downloadResumable.downloadAsync();
-        if (!result || !result.uri) throw new Error("Download failed");
-
-        // Handle Saving based on Type
-        const isImageOrVideo = ['jpg', 'png', 'jpeg', 'mp4', 'mov', 'webp'].some(ext => fileName.toLowerCase().endsWith(ext));
-
-        if (isImageOrVideo) {
-            await MediaLibrary.saveToLibraryAsync(result.uri);
-            Alert.alert("Saved!", "Image saved to your Gallery.");
-        } 
-        else if (Platform.OS === 'android') {
-            try {
-                const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
-                if (permissions.granted) {
-                    const base64Data = await FileSystem.readAsStringAsync(result.uri, { encoding: FileSystem.EncodingType.Base64 });
-                    const newFileUri = await FileSystem.StorageAccessFramework.createFileAsync(
-                        permissions.directoryUri, 
-                        fileName, 
-                        doc.mimeType || 'application/octet-stream'
-                    );
-                    await FileSystem.writeAsStringAsync(newFileUri, base64Data, { encoding: FileSystem.EncodingType.Base64 });
-                    Alert.alert("Success", "File saved to selected folder.");
-                } else {
-                    await Sharing.shareAsync(result.uri);
-                }
-            } catch (e) {
-                await Sharing.shareAsync(result.uri);
-            }
-        } 
-        else {
-            await Sharing.shareAsync(result.uri, { UTI: doc.mimeType, dialogTitle: fileName });
-        }
+      Alert.alert("Success", "Document uploaded successfully!");
+      
+      // Refresh list
+      setLoading(true);
+      await fetchDocuments();
 
     } catch (error) {
-        console.error('Download error:', error);
-        Alert.alert('Error', 'Failed to download document.');
+      console.error("Upload Error:", error);
+      Alert.alert("Upload Failed", error.message || "Could not upload document.");
     } finally {
-        setDownloadingIds(prev => ({ ...prev, [doc.id]: false }));
+      setUploading(false);
     }
-};
+  };
 
+  const handleDownload = async (doc) => {
+    // ... (Keep your existing download logic exactly as it is) ...
+    // Note: Use the existing logic you already wrote for permissions/downloading
+     setDownloadingIds(prev => ({ ...prev, [doc.id]: true }));
+     try {
+         const token = await authService.getToken();
+         if (!token) throw new Error("Unauthorized");
+
+         if (Platform.OS === 'android') {
+             const { status } = await MediaLibrary.requestPermissionsAsync(true);
+             if (status !== 'granted') {
+                 Alert.alert("Permission needed", "We need access to save this file.");
+                 setDownloadingIds(prev => ({ ...prev, [doc.id]: false }));
+                 return;
+             }
+         }
+
+         let fileName = doc.originalName || doc.fileName || `document_${doc.id}`;
+         fileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+         
+         const hasExtension = fileName.includes('.');
+         if (!hasExtension && doc.mimeType) {
+           // ... (mime mapping logic) ...
+            const mimeMap = {
+                 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png',
+                 'application/msword': 'doc', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+                 'application/vnd.ms-excel': 'xls', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+             };
+             const ext = mimeMap[doc.mimeType];
+             if (ext) fileName += `.${ext}`;
+         }
+
+         const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+         const downloadUrl = casesService.getDocumentDownloadUrl(caseId, doc.id);
+
+         const downloadResumable = FileSystem.createDownloadResumable(
+             downloadUrl, fileUri, { headers: { 'Authorization': `Bearer ${token}` } }
+         );
+
+         const result = await downloadResumable.downloadAsync();
+         if (!result || !result.uri) throw new Error("Download failed");
+
+         // Save Logic
+         const isImageOrVideo = ['jpg', 'png', 'jpeg', 'mp4', 'mov', 'webp'].some(ext => fileName.toLowerCase().endsWith(ext));
+
+         if (isImageOrVideo) {
+             await MediaLibrary.saveToLibraryAsync(result.uri);
+             Alert.alert("Saved!", "Image saved to your Gallery.");
+         } else if (Platform.OS === 'android') {
+             try {
+                 const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+                 if (permissions.granted) {
+                     const base64Data = await FileSystem.readAsStringAsync(result.uri, { encoding: FileSystem.EncodingType.Base64 });
+                     const newFileUri = await FileSystem.StorageAccessFramework.createFileAsync(
+                         permissions.directoryUri, fileName, doc.mimeType || 'application/octet-stream'
+                     );
+                     await FileSystem.writeAsStringAsync(newFileUri, base64Data, { encoding: FileSystem.EncodingType.Base64 });
+                     Alert.alert("Success", "File saved to selected folder.");
+                 } else {
+                     await Sharing.shareAsync(result.uri);
+                 }
+             } catch (e) {
+                 await Sharing.shareAsync(result.uri);
+             }
+         } else {
+             await Sharing.shareAsync(result.uri, { UTI: doc.mimeType, dialogTitle: fileName });
+         }
+     } catch (error) {
+         console.error('Download error:', error);
+         Alert.alert('Error', 'Failed to download document.');
+     } finally {
+         setDownloadingIds(prev => ({ ...prev, [doc.id]: false }));
+     }
+  };
 
   const getFileIcon = (fileName) => {
     const ext = fileName?.toLowerCase().split('.').pop();
@@ -913,23 +944,118 @@ function DocumentsTab({ caseId }) {
   }
 
   if (documents.length === 0) {
-    return (
-      <View>
-        <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>
-          Documents & Files
-        </Text>
-        
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 60 }}>
+ return (
+    <View>
+       {/* --- NEW: ADD ATTACHMENT BUTTON --- */}
+       <TouchableOpacity 
+        onPress={handleLaunchCamera} 
+        disabled={uploading}
+        style={{ 
+          backgroundColor: '#3b82f6', 
+          borderRadius: 12, 
+          paddingVertical: 18, 
+          flexDirection: 'row', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          marginBottom: 24,
+          gap: 12,
+          borderWidth: 2,
+          borderColor: '#60a5fa',
+          shadowColor: '#3b82f6',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.3,
+          shadowRadius: 8,
+          elevation: 8
+        }}
+      >
+        {uploading ? (
+          <>
+            <ActivityIndicator color="#ffffff" size="small" />
+            <Text style={{ color: '#ffffff', fontSize: 17, fontWeight: '700' }}>Uploading...</Text>
+          </>
+        ) : (
+          <>
+            <Camera color="#ffffff" size={28} strokeWidth={2.5} />
+            <Text style={{ color: '#ffffff', fontSize: 17, fontWeight: '700' }}>Add Document</Text>
+          </>
+        )}
+      </TouchableOpacity>
+
+      <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>
+        Documents & Files ({documents.length})
+      </Text>
+
+      {/* Empty State */}
+      {documents.length === 0 && (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
           <FileText color="#64748b" size={48} />
           <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600', marginTop: 16 }}>
             No Documents
           </Text>
-          <Text style={{ color: '#64748b', fontSize: 14, marginTop: 8 }}>
-            No documents or files have been uploaded for this case
-          </Text>
         </View>
-      </View>
-    );
+      )}
+
+      {/* Documents List */}
+      {documents.map((doc, index) => {
+        const docName = doc.originalName || doc.fileName || `Document ${index + 1}`;
+        return (
+          <View
+            key={doc.id ? `doc-${doc.id}-${index}` : `doc-index-${index}`}
+            style={{ 
+              backgroundColor: '#1e293b', 
+              borderRadius: 10, 
+              padding: 16,
+              marginBottom: 12,
+              borderWidth: 1,
+              borderColor: '#334155',
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={{ fontSize: 32, marginRight: 12 }}>
+                {getFileIcon(docName)}
+              </Text>
+              
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '500' }}>
+                  {docName}
+                </Text>
+                <Text style={{ color: '#64748b', fontSize: 12, marginTop: 4 }}>
+                  {getFileType(docName)}
+                  {doc.fileSize && ` • ${formatFileSize(doc.fileSize)}`}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                onPress={() => handleDownload(doc)}
+                disabled={downloadingIds[doc.id]}
+                style={{
+                  backgroundColor: downloadingIds[doc.id] ? '#1e293b' : '#3b82f6',
+                  paddingHorizontal: 16,
+                  paddingVertical: 10,
+                  borderRadius: 8,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  marginLeft: 12,
+                }}
+              >
+                {downloadingIds[doc.id] ? (
+                  <ActivityIndicator size="small" color="#3b82f6" />
+                ) : (
+                  <>
+                    <Download color="#ffffff" size={16} />
+                    <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '600' }}>
+                      Download
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        );
+      })}
+    </View>
+  );
   }
 
   return (

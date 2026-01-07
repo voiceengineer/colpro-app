@@ -121,27 +121,69 @@ export const casesService = {
 
     return await response.json();
   },
-
-  async uploadCaseDocument(caseId, formData) {
+// REPLACE the old uploadCaseDocument with this one:
+  async uploadCaseDocument(caseId, fileUri) {
     const token = await authService.getToken();
     if (!token) throw new Error("UNAUTHORIZED");
 
-    const response = await fetch(`${API_URL}/cases/${caseId}/documents`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        // Note: Don't set Content-Type for FormData, let the browser set it with boundary
-      },
-      body: formData,
+    // Correct Endpoint for Cases
+    const url = `${API_URL}/cases/${caseId}/documents`;
+
+    // 1. Prepare File Details
+    const uri = fileUri.startsWith('file://') ? fileUri : `file://${fileUri}`;
+    const fileType = uri.endsWith('png') ? 'image/png' : 'image/jpeg';
+    const fileName = `upload_${Date.now()}.${uri.endsWith('png') ? 'png' : 'jpg'}`;
+
+    // 2. Use XMLHttpRequest (Matches tasksService implementation)
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', url);
+      
+      // Headers
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.setRequestHeader('Accept', 'application/json');
+      // CRITICAL: Do NOT set Content-Type here. 
+      // The browser/native layer sets it automatically with the boundary.
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const response = JSON.parse(xhr.response);
+            resolve(response);
+          } catch (e) {
+            resolve({}); // Handle empty success response
+          }
+        } else {
+          console.error("XHR Failed:", xhr.responseText);
+          try {
+            const error = JSON.parse(xhr.responseText);
+            reject(new Error(error.message || `Upload failed: ${xhr.status}`));
+          } catch (e) {
+            reject(new Error(`Upload failed with status ${xhr.status}`));
+          }
+        }
+      };
+
+      xhr.onerror = (e) => {
+        console.error("XHR Network Error:", e);
+        reject(new Error("Network request failed"));
+      };
+
+      // 3. Construct FormData
+      const formData = new FormData();
+      formData.append('file', {
+        uri: uri,
+        name: fileName,
+        type: fileType,
+      });
+
+      // Optional: Add description if your API supports it for cases
+      // formData.append('description', 'Uploaded via Mobile App');
+
+      // 4. Send
+      xhr.send(formData);
     });
-
-    if (response.status === 401) throw new Error("UNAUTHORIZED");
-    if (response.status === 403) throw new Error("FORBIDDEN");
-    if (!response.ok) throw new Error("Failed to upload document");
-
-    return await response.json();
   },
-
 // In casesService.js
 getDocumentDownloadUrl(caseId, documentId) {
     return `${API_URL}/cases/${caseId}/documents/${documentId}/download`;
