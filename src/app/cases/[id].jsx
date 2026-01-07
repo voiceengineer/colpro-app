@@ -943,7 +943,7 @@ function DocumentsTab({ caseId }) {
     );
   }
 
-  if (documents.length === 0) {
+ 
  return (
     <View>
        {/* --- NEW: ADD ATTACHMENT BUTTON --- */}
@@ -1056,7 +1056,7 @@ function DocumentsTab({ caseId }) {
       })}
     </View>
   );
-  }
+ 
 
   return (
     <View>
