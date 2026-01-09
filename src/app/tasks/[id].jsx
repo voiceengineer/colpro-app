@@ -1,9 +1,8 @@
-
 import React, { useState } from 'react';
 import { 
   View, Text, TouchableOpacity, ScrollView, 
   ActivityIndicator, Alert, Dimensions, RefreshControl,
-  Modal, Platform, Image, Linking
+  Modal, Platform, Linking, TextInput
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -12,25 +11,21 @@ import {
   ArrowLeft, User, Phone, MapPin, Calendar, 
   DollarSign, AlertCircle, FileText, Package,
   Copy, CheckCircle, Eye, EyeOff, X, Download,
-  Clock, ClipboardList, Image as ImageIcon, Camera
+  Clock, ClipboardList, Image as ImageIcon, Camera,
+  Navigation, Play, Save
 } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
-
-// --- IMPORTS FOR DOWNLOAD & CAMERA ---
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as MediaLibrary from 'expo-media-library'; 
 import * as ImagePicker from 'expo-image-picker';
-
-// --- SERVICES ---
 import { tasksService } from '../../lib/services/tasksService';
 import { casesService } from '../../lib/services/casesService';
 import { authService } from '../../lib/services/authService';
 
 const { width } = Dimensions.get('window');
 
-// Helper to check file type
 const isMediaFile = (fileName) => {
   if (!fileName) return false;
   const ext = fileName.split('.').pop().toLowerCase();
@@ -41,6 +36,13 @@ const TABS = [
   { id: 'info', label: 'Info', icon: User },
   { id: 'products', label: 'Products', icon: Package },
   { id: 'documents', label: 'Docs', icon: FileText },
+  { id: 'visit', label: 'Visit', icon: Navigation },
+];
+
+const STATUS_OPTIONS = [
+  { value: 'pending', label: 'Pending' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'cancelled', label: 'Cancelled' }
 ];
 
 export default function TaskDetailsPage() {
@@ -53,6 +55,14 @@ export default function TaskDetailsPage() {
   const [sensitiveDataVisible, setSensitiveDataVisible] = useState({
     phone: false,
     address: false,
+  });
+  const [showCompleteModal, setShowCompleteModal] = useState(false);
+  const [completingVisit, setCompletingVisit] = useState(false);
+  const [uploadingEvidence, setUploadingEvidence] = useState(false);
+  const [visitForm, setVisitForm] = useState({
+    status: 'completed',
+    notes: '',
+    actualAmountCollected: ''
   });
 
   const { data: taskData, isLoading, error, refetch } = useQuery({
@@ -72,6 +82,163 @@ export default function TaskDetailsPage() {
       ...prev,
       [field]: !prev[field]
     }));
+  };
+
+  const handleStartVisit = async () => {
+    // Open camera using Documents tab's exact function
+    try {
+      const { status: existingStatus } = await ImagePicker.getCameraPermissionsAsync();
+      
+      if (existingStatus !== 'granted') {
+        const granted = await new Promise((resolve) => {
+          Alert.alert(
+            "Camera Permission Required",
+            "CollPro needs access to your camera to take evidence photos.",
+            [
+              { text: "Deny", onPress: () => resolve(false), style: "cancel" },
+              {
+                text: "Allow",
+                onPress: async () => {
+                  const { status } = await ImagePicker.requestCameraPermissionsAsync();
+                  resolve(status === 'granted');
+                }
+              }
+            ],
+            { cancelable: false }
+          );
+        });
+        
+        if (!granted) {
+          Alert.alert(
+            "Permission Denied",
+            "Camera permission is required. Please enable it in your device settings.",
+            [
+              { text: "Cancel", style: "cancel" },
+              { text: "Open Settings", onPress: () => Linking.openSettings() }
+            ]
+          );
+          return;
+        }
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false, 
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        // Upload photo using exact Documents tab logic
+        await uploadEvidencePhoto(result.assets[0]);
+      }
+    } catch (error) { 
+      console.error("Camera Error:", error);
+      Alert.alert("Error", "Could not open camera."); 
+    }
+  };
+
+  const uploadEvidencePhoto = async (photo) => {
+    setUploadingEvidence(true);
+    try {
+      const token = await authService.getToken();
+      if (!token) throw new Error("Unauthorized");
+
+      const photoUri = photo.uri;
+      const originalFileName = photo.fileName || `photo_${Date.now()}.jpg`;
+      const uploadUrl = `https://dev.collpro.uz/api/field-visit/tasks/${id}/attachments`;
+
+      const formData = new FormData();
+      formData.append('file', {
+        uri: photoUri,
+        type: 'image/jpeg',
+        name: originalFileName,
+      });
+      formData.append('description', `${originalFileName} uploaded from field visit`);
+      formData.append('attachmentType', 'photo');
+
+      const uploadPromise = new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try { resolve(JSON.parse(xhr.responseText)); } catch (e) { resolve({ success: true }); }
+          } else {
+            reject(new Error(`Upload failed with status ${xhr.status}`));
+          }
+        };
+        xhr.onerror = () => reject(new Error('Network error during upload'));
+        xhr.open('POST', uploadUrl);
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.send(formData);
+      });
+
+      await uploadPromise;
+      
+      // After successful upload, open modal
+      Alert.alert("Success", "Evidence photo uploaded successfully!");
+      setVisitForm({
+        status: 'completed',
+        notes: '',
+        actualAmountCollected: taskData?.expectedAmount?.toString() || ''
+      });
+      setShowCompleteModal(true);
+    } catch (error) {
+      console.error("Upload Error:", error);
+      Alert.alert("Upload Failed", error.message || "Could not upload evidence photo.");
+    } finally {
+      setUploadingEvidence(false);
+    }
+  };
+
+  const handleCompleteVisit = async () => {
+    // Validation
+    if (!visitForm.notes.trim()) {
+      Alert.alert("Validation Error", "Please add notes about the visit.");
+      return;
+    }
+
+    if (!visitForm.actualAmountCollected) {
+      Alert.alert("Validation Error", "Please enter the amount collected (enter 0 if none).");
+      return;
+    }
+
+    Alert.alert(
+      'Complete Visit',
+      'Are you sure you want to complete this visit?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Complete',
+          onPress: async () => {
+            try {
+              setCompletingVisit(true);
+
+              // Update task data (NO outcome, NO photos)
+              const updateData = {
+                status: visitForm.status,
+                notes: visitForm.notes,
+                actualAmountCollected: parseFloat(visitForm.actualAmountCollected) || 0
+              };
+
+              await tasksService.updateTask(id, updateData);
+
+              Alert.alert(
+                "Success!", 
+                `Visit completed successfully!\n\n• Status: ${visitForm.status.replace(/_/g, ' ').toUpperCase()}\n• Amount: ${visitForm.actualAmountCollected}`,
+                [{ text: "OK", onPress: async () => {
+                  setShowCompleteModal(false);
+                  await refetch();
+                }}]
+              );
+            } catch (error) {
+              console.error("Complete Visit Error:", error);
+              Alert.alert("Error", error.message || "Could not complete visit.");
+            } finally {
+              setCompletingVisit(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   if (error) {
@@ -148,11 +315,12 @@ export default function TaskDetailsPage() {
     }
   };
 
+  const canStartVisit = taskData?.status?.toLowerCase() === 'pending';
+
   return (
     <View style={{ flex: 1, backgroundColor: '#0f172a' }}>
       <StatusBar style="light" />
       
-      {/* Header */}
       <View style={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 16, backgroundColor: '#1e293b', borderBottomWidth: 1, borderBottomColor: '#334155' }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
@@ -173,7 +341,6 @@ export default function TaskDetailsPage() {
           </View>
         </View>
 
-        {/* Quick Stats */}
         <View style={{ flexDirection: 'row', marginTop: 16, gap: 12, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#334155' }}>
           <View style={{ flex: 1, backgroundColor: '#0f172a', padding: 12, borderRadius: 8 }}>
             <Text style={{ color: '#64748b', fontSize: 11, fontWeight: '600' }}>EXPECTED</Text>
@@ -190,9 +357,39 @@ export default function TaskDetailsPage() {
             <Text style={{ color: getStatusColor(taskData?.status), fontSize: 13, fontWeight: 'bold', marginTop: 4, textTransform: 'uppercase' }}>{taskData?.status?.replace(/_/g, ' ') || 'N/A'}</Text>
           </View>
         </View>
+
+        {/* Start Visit Button */}
+        {canStartVisit && (
+          <TouchableOpacity 
+            onPress={handleStartVisit}
+            disabled={uploadingEvidence}
+            style={{ 
+              backgroundColor: uploadingEvidence ? '#059669' : '#10b981', 
+              borderRadius: 10, 
+              paddingVertical: 12, 
+              flexDirection: 'row', 
+              justifyContent: 'center', 
+              alignItems: 'center', 
+              marginTop: 12,
+              gap: 8,
+              opacity: uploadingEvidence ? 0.7 : 1
+            }}
+          >
+            {uploadingEvidence ? (
+              <>
+                <ActivityIndicator color="#ffffff" size="small" />
+                <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '700' }}>Uploading...</Text>
+              </>
+            ) : (
+              <>
+                <Play color="#ffffff" size={18} strokeWidth={2.5} />
+                <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '700' }}>Start Visit</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
       </View>
 
-      {/* Tabs */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ backgroundColor: '#1e293b', borderBottomWidth: 1, borderBottomColor: '#334155', maxHeight: 60 }} contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 10 }}>
         {TABS.map((tab) => {
           const Icon = tab.icon;
@@ -206,10 +403,12 @@ export default function TaskDetailsPage() {
         })}
       </ScrollView>
 
-      {/* Content */}
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 20 }} refreshControl={ <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#3b82f6" /> }>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 20 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#3b82f6" />}>
         {activeTab === 'info' && (
           <TaskInfoTab taskData={taskData} agent={agent} formatCurrency={formatCurrency} formatDate={formatDate} formatTime={formatTime} copyToClipboard={copyToClipboard} sensitiveDataVisible={sensitiveDataVisible} toggleSensitiveData={toggleSensitiveData} />
+        )}
+        {activeTab === 'visit' && (
+          <VisitTab taskId={id} taskData={taskData} formatDate={formatDate} formatTime={formatTime} formatCurrency={formatCurrency} refetch={refetch} />
         )}
         {activeTab === 'products' && (
           <ProductsTab caseId={taskData?.caseId} formatCurrency={formatCurrency} />
@@ -218,11 +417,335 @@ export default function TaskDetailsPage() {
           <DocumentsTab taskId={id} />
         )}
       </ScrollView>
+
+      {/* Complete Visit Modal */}
+      <Modal
+        visible={showCompleteModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => !completingVisit && setShowCompleteModal(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <TouchableOpacity 
+            style={{ flex: 1 }} 
+            activeOpacity={1} 
+            onPress={() => !completingVisit && setShowCompleteModal(false)}
+          />
+          <View style={{ backgroundColor: '#1e293b', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '90%', paddingBottom: insets.bottom }}>
+            {/* Header */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, borderBottomWidth: 1, borderBottomColor: '#334155' }}>
+              <Text style={{ color: '#ffffff', fontSize: 20, fontWeight: 'bold' }}>Complete Visit</Text>
+              <TouchableOpacity onPress={() => !completingVisit && setShowCompleteModal(false)} disabled={completingVisit}>
+                <X color="#64748b" size={24} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ maxHeight: '75%' }} contentContainerStyle={{ padding: 20 }}>
+              {/* Status Selection */}
+              <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600', marginBottom: 12 }}>Status</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
+                {STATUS_OPTIONS.map((option) => (
+                  <TouchableOpacity
+                    key={option.value}
+                    onPress={() => setVisitForm(prev => ({ ...prev, status: option.value }))}
+                    disabled={completingVisit}
+                    style={{
+                      backgroundColor: visitForm.status === option.value ? '#3b82f6' : '#0f172a',
+                      paddingHorizontal: 16,
+                      paddingVertical: 10,
+                      borderRadius: 8,
+                      borderWidth: 1,
+                      borderColor: visitForm.status === option.value ? '#3b82f6' : '#334155'
+                    }}
+                  >
+                    <Text style={{ color: visitForm.status === option.value ? '#ffffff' : '#64748b', fontSize: 14, fontWeight: '600' }}>
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Amount Collected */}
+              <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600', marginBottom: 8 }}>Amount Collected</Text>
+              <TextInput
+                style={{
+                  backgroundColor: '#0f172a',
+                  color: '#ffffff',
+                  fontSize: 16,
+                  padding: 14,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: '#334155',
+                  marginBottom: 20
+                }}
+                placeholder="Enter amount collected"
+                placeholderTextColor="#64748b"
+                keyboardType="numeric"
+                value={visitForm.actualAmountCollected}
+                onChangeText={(text) => setVisitForm(prev => ({ ...prev, actualAmountCollected: text }))}
+                editable={!completingVisit}
+              />
+
+              {/* Notes */}
+              <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600', marginBottom: 8 }}>Notes</Text>
+              <TextInput
+                style={{
+                  backgroundColor: '#0f172a',
+                  color: '#ffffff',
+                  fontSize: 15,
+                  padding: 14,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: '#334155',
+                  marginBottom: 20,
+                  minHeight: 100,
+                  textAlignVertical: 'top'
+                }}
+                placeholder="Add notes about the visit..."
+                placeholderTextColor="#64748b"
+                multiline
+                numberOfLines={4}
+                value={visitForm.notes}
+                onChangeText={(text) => setVisitForm(prev => ({ ...prev, notes: text }))}
+                editable={!completingVisit}
+              />
+            </ScrollView>
+
+            {/* Action Buttons */}
+            <View style={{ padding: 20, borderTopWidth: 1, borderTopColor: '#334155', gap: 12 }}>
+              <TouchableOpacity
+                onPress={handleCompleteVisit}
+                disabled={completingVisit}
+                style={{
+                  backgroundColor: '#10b981',
+                  borderRadius: 12,
+                  paddingVertical: 16,
+                  flexDirection: 'row',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  gap: 10
+                }}
+              >
+                {completingVisit ? (
+                  <>
+                    <ActivityIndicator color="#ffffff" size="small" />
+                    <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '700' }}>Saving...</Text>
+                  </>
+                ) : (
+                  <>
+                    <Save color="#ffffff" size={20} />
+                    <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '700' }}>Complete Visit</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => setShowCompleteModal(false)}
+                disabled={completingVisit}
+                style={{
+                  backgroundColor: '#334155',
+                  borderRadius: 12,
+                  paddingVertical: 16,
+                  justifyContent: 'center',
+                  alignItems: 'center'
+                }}
+              >
+                <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600' }}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
-// Products Tab
+function VisitTab({ taskId, taskData, formatDate, formatTime, refetch, formatCurrency }) {
+  const getStatusColor = (status) => {
+    const s = status?.toLowerCase();
+    switch(s) {
+      case 'completed': return '#10b981';
+      case 'pending': return '#f59e0b';
+      case 'in_progress': return '#3b82f6';
+      case 'cancelled': return '#ef4444';
+      default: return '#64748b';
+    }
+  };
+
+  const isVisitCompleted = taskData?.status?.toLowerCase() === 'completed';
+  const isVisitActive = taskData?.status?.toLowerCase() === 'in_progress';
+
+  return (
+    <View>
+      <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>Visit Details</Text>
+
+      {isVisitActive && (
+        <View style={{ backgroundColor: '#3b82f620', borderRadius: 12, padding: 16, marginBottom: 24, borderWidth: 1, borderColor: '#3b82f6' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: '#3b82f6', shadowColor: '#3b82f6', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.5, shadowRadius: 4 }} />
+            <Text style={{ color: '#3b82f6', fontSize: 16, fontWeight: '700' }}>Visit In Progress</Text>
+          </View>
+        </View>
+      )}
+
+      {isVisitCompleted && (
+        <View style={{ backgroundColor: '#10b98120', borderRadius: 12, padding: 16, marginBottom: 24, borderWidth: 1, borderColor: '#10b981' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+            <CheckCircle color="#10b981" size={24} />
+            <Text style={{ color: '#10b981', fontSize: 18, fontWeight: '700' }}>Visit Completed</Text>
+          </View>
+          {taskData?.actualEndTime && (
+            <Text style={{ color: '#64748b', fontSize: 14, marginLeft: 34 }}>
+              Completed at: <Text style={{ color: '#ffffff', fontWeight: '600' }}>{formatTime(taskData.actualEndTime)}</Text>
+            </Text>
+          )}
+        </View>
+      )}
+
+      {/* Visit Information Cards */}
+      <View style={{ backgroundColor: '#1e293b', borderRadius: 10, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#334155' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+          <Navigation color="#3b82f6" size={20} />
+          <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600', marginLeft: 8 }}>Visit Information</Text>
+        </View>
+
+        <View style={{ gap: 10 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }}>
+            <Text style={{ color: '#64748b', fontSize: 14 }}>Visit Type:</Text>
+            <Text style={{ color: '#ffffff', fontSize: 14, fontWeight: '500', textTransform: 'uppercase' }}>
+              {taskData?.visitType?.replace(/_/g, ' ') || 'N/A'}
+            </Text>
+          </View>
+
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }}>
+            <Text style={{ color: '#64748b', fontSize: 14 }}>Status:</Text>
+            <Text style={{ color: getStatusColor(taskData?.status), fontSize: 14, fontWeight: '600', textTransform: 'uppercase' }}>
+              {taskData?.status?.replace(/_/g, ' ') || 'N/A'}
+            </Text>
+          </View>
+
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }}>
+            <Text style={{ color: '#64748b', fontSize: 14 }}>Scheduled Date:</Text>
+            <Text style={{ color: '#ffffff', fontSize: 14, fontWeight: '500' }}>
+              {formatDate(taskData?.scheduledDate)}
+            </Text>
+          </View>
+
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }}>
+            <Text style={{ color: '#64748b', fontSize: 14 }}>Scheduled Time:</Text>
+            <Text style={{ color: '#ffffff', fontSize: 14, fontWeight: '500' }}>
+              {formatTime(taskData?.scheduledTime)}
+            </Text>
+          </View>
+
+          {taskData?.estimatedDuration && (
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }}>
+              <Text style={{ color: '#64748b', fontSize: 14 }}>Estimated Duration:</Text>
+              <Text style={{ color: '#ffffff', fontSize: 14, fontWeight: '500' }}>
+                {taskData.estimatedDuration} minutes
+              </Text>
+            </View>
+          )}
+
+          {taskData?.expectedAmount && (
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }}>
+              <Text style={{ color: '#64748b', fontSize: 14 }}>Expected Amount:</Text>
+              <Text style={{ color: '#ffffff', fontSize: 14, fontWeight: '500' }}>
+                {formatCurrency(taskData.expectedAmount)}
+              </Text>
+            </View>
+          )}
+
+          {taskData?.actualAmountCollected != null && (
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }}>
+              <Text style={{ color: '#64748b', fontSize: 14 }}>Amount Collected:</Text>
+              <Text style={{ color: '#10b981', fontSize: 14, fontWeight: '600' }}>
+                {formatCurrency(taskData.actualAmountCollected)}
+              </Text>
+            </View>
+          )}
+        </View>
+      </View>
+
+      {/* Visit Timeline */}
+      {(taskData?.actualStartTime || taskData?.actualEndTime || taskData?.actualDuration) && (
+        <View style={{ backgroundColor: '#1e293b', borderRadius: 10, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#334155' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+            <Clock color="#3b82f6" size={20} />
+            <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600', marginLeft: 8 }}>Visit Timeline</Text>
+          </View>
+
+          <View style={{ gap: 8 }}>
+            {taskData.actualStartTime && (
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }}>
+                <Text style={{ color: '#64748b', fontSize: 14 }}>Start Time:</Text>
+                <Text style={{ color: '#ffffff', fontSize: 14, fontWeight: '500' }}>
+                  {formatTime(taskData.actualStartTime)}
+                </Text>
+              </View>
+            )}
+
+            {taskData.actualEndTime && (
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }}>
+                <Text style={{ color: '#64748b', fontSize: 14 }}>End Time:</Text>
+                <Text style={{ color: '#ffffff', fontSize: 14, fontWeight: '500' }}>
+                  {formatTime(taskData.actualEndTime)}
+                </Text>
+              </View>
+            )}
+
+            {taskData.actualDuration && (
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }}>
+                <Text style={{ color: '#64748b', fontSize: 14 }}>Actual Duration:</Text>
+                <Text style={{ color: '#10b981', fontSize: 14, fontWeight: '600' }}>
+                  {taskData.actualDuration} minutes
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+      )}
+
+      {/* Outcome & Notes */}
+      {(taskData?.outcome || taskData?.notes) && (
+        <View style={{ backgroundColor: '#1e293b', borderRadius: 10, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#334155' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+            <FileText color="#3b82f6" size={20} />
+            <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600', marginLeft: 8 }}>Visit Summary</Text>
+          </View>
+
+          {taskData.outcome && (
+            <View style={{ marginBottom: 12 }}>
+              <Text style={{ color: '#64748b', fontSize: 13, fontWeight: '600', marginBottom: 6 }}>OUTCOME</Text>
+              <Text style={{ color: '#ffffff', fontSize: 14, lineHeight: 20 }}>{taskData.outcome}</Text>
+            </View>
+          )}
+
+          {taskData.notes && (
+            <View>
+              <Text style={{ color: '#64748b', fontSize: 13, fontWeight: '600', marginBottom: 6 }}>NOTES</Text>
+              <Text style={{ color: '#ffffff', fontSize: 14, lineHeight: 20 }}>{taskData.notes}</Text>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* Location if available */}
+      {(taskData?.coordinatesLat || taskData?.coordinatesLng) && (
+        <View style={{ backgroundColor: '#1e293b', borderRadius: 10, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#334155' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+            <MapPin color="#3b82f6" size={20} />
+            <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600', marginLeft: 8 }}>Location</Text>
+          </View>
+          <Text style={{ color: '#ffffff', fontSize: 14 }}>
+            {taskData.coordinatesLat?.toFixed(6)}, {taskData.coordinatesLng?.toFixed(6)}
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
 function ProductsTab({ caseId, formatCurrency }) {
   const { data: rawData, isLoading } = useQuery({
     queryKey: ['case-products', caseId],
@@ -264,7 +787,6 @@ function ProductsTab({ caseId, formatCurrency }) {
   );
 }
 
-// Documents Tab
 function DocumentsTab({ taskId }) {
   const [documents, setDocuments] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
@@ -286,10 +808,7 @@ function DocumentsTab({ taskId }) {
 
   const handleLaunchCamera = async () => {
     try {
-      // Check and request camera permission with custom alert
       const { status: existingStatus } = await ImagePicker.getCameraPermissionsAsync();
-      
-      let finalStatus = existingStatus;
       
       if (existingStatus !== 'granted') {
         const granted = await new Promise((resolve) => {
@@ -297,11 +816,7 @@ function DocumentsTab({ taskId }) {
             "Camera Permission Required",
             "CollPro needs access to your camera to take photos for task documentation.",
             [
-              {
-                text: "Deny",
-                onPress: () => resolve(false),
-                style: "cancel"
-              },
+              { text: "Deny", onPress: () => resolve(false), style: "cancel" },
               {
                 text: "Allow",
                 onPress: async () => {
@@ -350,10 +865,6 @@ function DocumentsTab({ taskId }) {
 
       const photoUri = photo.uri;
       const originalFileName = photo.fileName || `photo_${Date.now()}.jpg`;
-      const fileInfo = await FileSystem.getInfoAsync(photoUri);
-      
-      console.log('Uploading file:', { uri: photoUri, name: originalFileName, size: fileInfo.size });
-
       const uploadUrl = `https://dev.collpro.uz/api/field-visit/tasks/${taskId}/attachments`;
 
       const formData = new FormData();
@@ -371,7 +882,7 @@ function DocumentsTab({ taskId }) {
           if (xhr.status >= 200 && xhr.status < 300) {
             try { resolve(JSON.parse(xhr.responseText)); } catch (e) { resolve({ success: true }); }
           } else {
-            reject(new Error(`Upload failed with status ${xhr.status}: ${xhr.responseText}`));
+            reject(new Error(`Upload failed with status ${xhr.status}`));
           }
         };
         xhr.onerror = () => reject(new Error('Network error during upload'));
@@ -384,7 +895,6 @@ function DocumentsTab({ taskId }) {
       Alert.alert("Success", "Photo uploaded successfully!");
       setLoading(true);
       await fetchDocuments();
-
     } catch (error) {
       console.error("Upload Error:", error);
       Alert.alert("Upload Failed", error.message || "Could not upload photo.");
@@ -392,7 +902,6 @@ function DocumentsTab({ taskId }) {
       setUploading(false);
     }
   };
-
 const handleDownload = async (doc) => {
     setDownloadingIds(prev => ({ ...prev, [doc.id]: true }));
     try {
@@ -415,17 +924,14 @@ const handleDownload = async (doc) => {
 
       const isImage = isMediaFile(fileName);
       
-      // For images, request permission (system will show native dialog automatically)
       if (isImage && Platform.OS === 'android') {
         try {
-          // Use granular permissions - only request 'photo' to avoid AUDIO permission error
           const { status, canAskAgain, granted } = await MediaLibrary.requestPermissionsAsync(
             false, 
-            ['photo'] // Only request photo permission
+            ['photo']
           );
           
           if (!granted) {
-            // User denied permission
             if (canAskAgain) {
               Alert.alert(
                 "Permission Required",
@@ -433,7 +939,6 @@ const handleDownload = async (doc) => {
                 [{ text: "OK" }]
               );
             } else {
-              // User denied with "Don't ask again"
               Alert.alert(
                 "Permission Denied",
                 "Gallery permission was denied. Please enable it in your device settings to save images.",
@@ -454,7 +959,6 @@ const handleDownload = async (doc) => {
         }
       }
 
-      // Download the file
       const fileUri = `${FileSystem.documentDirectory}${fileName}`;
       const downloadUrl = tasksService.getAttachmentDownloadUrl(doc.id); 
       
@@ -465,9 +969,7 @@ const handleDownload = async (doc) => {
       const result = await downloadResumable.downloadAsync();
       if (!result || !result.uri) throw new Error("Download failed");
 
-      // Save based on file type
       if (isImage) {
-        // Permission already granted, save to gallery
         try {
           await MediaLibrary.saveToLibraryAsync(result.uri);
           Alert.alert("Success!", "Image saved to your Gallery.");
@@ -476,7 +978,6 @@ const handleDownload = async (doc) => {
           Alert.alert("Save Failed", "Could not save image to gallery. Please check app permissions in settings.");
         }
       } else if (Platform.OS === 'android') {
-        // For non-image files on Android, use SAF
         Alert.alert(
           "Save File",
           `Save "${fileName}" to your device?`,
@@ -515,7 +1016,6 @@ const handleDownload = async (doc) => {
         );
         return;
       } else {
-        // iOS
         await Sharing.shareAsync(result.uri, { 
           UTI: doc.mimeType, 
           dialogTitle: 'Save File',
@@ -545,7 +1045,6 @@ const handleDownload = async (doc) => {
 
   return (
     <View>
-      {/* Upload Button */}
       <TouchableOpacity 
         onPress={handleLaunchCamera} 
         disabled={uploading}
@@ -584,7 +1083,6 @@ const handleDownload = async (doc) => {
         Documents & Photos ({documents.length})
       </Text>
 
-      {/* Documents List or Empty State */}
       {documents.length === 0 ? (
         <View style={{ alignItems: 'center', paddingVertical: 40, opacity: 0.8 }}>
           <FileText color="#64748b" size={48} />
@@ -633,7 +1131,6 @@ const handleDownload = async (doc) => {
   );
 }
 
-// Task Info Component (unchanged)
 function TaskInfoTab({ taskData, agent, formatCurrency, formatDate, formatTime, copyToClipboard, sensitiveDataVisible, toggleSensitiveData }) {
     const InfoCard = ({ icon: Icon, label, value, onCopy, sensitive, sensitiveKey }) => {
         const isSensitive = sensitive && !sensitiveDataVisible[sensitiveKey];

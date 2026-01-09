@@ -4,7 +4,7 @@ import {
   TextInput, RefreshControl, Alert 
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { 
   Search, ClipboardList, Calendar, DollarSign, 
@@ -309,6 +309,15 @@ export default function Tasks() {
     },
     enabled: !!user?.id,
   });
+
+  // Auto-reload when screen comes into focus (when coming back from task details)
+  useFocusEffect(
+    React.useCallback(() => {
+      // Invalidate and refetch tasks when screen is focused
+      queryClient.invalidateQueries(['tasks']);
+      refetch();
+    }, [queryClient, refetch])
+  );
 
   if (error) {
     const errorMessage = error.message;
