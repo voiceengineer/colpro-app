@@ -8,8 +8,8 @@ import {
   Search, Filter, Plus, User, Phone, DollarSign,
   ChevronRight, Users, Activity
 } from 'lucide-react-native';
-import { debtorsService } from '../../lib/services/debtorsService';
-import { useDebounce } from '../../hooks/useDebounce';
+import { debtorsService } from '../lib/services/debtorsService';
+import { useDebounce } from '../hooks/useDebounce';
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('uz-UZ', {

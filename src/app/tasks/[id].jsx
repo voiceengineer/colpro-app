@@ -12,7 +12,7 @@ import {
   DollarSign, AlertCircle, FileText, Package,
   Copy, CheckCircle, Eye, EyeOff, X, Download,
   Clock, ClipboardList, Image as ImageIcon, Camera,
-  Navigation, Play, Save
+  Navigation, Play, Save, CreditCard, ChevronDown
 } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
@@ -42,7 +42,30 @@ const TABS = [
 const STATUS_OPTIONS = [
   { value: 'pending', label: 'Pending' },
   { value: 'completed', label: 'Completed' },
-  { value: 'cancelled', label: 'Cancelled' }
+  { value: 'cancelled', label: 'Cancelled' },
+  { value: 'assigned', label: 'Assigned' },
+  { value: 'scheduled', label: 'Scheduled' },
+  { value: 'in-progress', label: 'In Progress' },
+  { value: 'partial_payment', label: 'Частичная оплата' },
+  { value: 'aggression', label: 'Агрессия' },
+  { value: 'ptp', label: 'Обещания (PTP)' },
+  { value: 'skip_trace', label: 'Скипт (skipt trace)' }
+];
+
+const PAYMENT_METHODS = [
+  { value: 'bank_transfer', label: 'Bank Transfer' },
+  { value: 'cash', label: 'Cash' },
+  { value: 'credit_card', label: 'Credit Card' },
+  { value: 'debit_card', label: 'Debit Card' },
+  { value: 'mobile_payment', label: 'Mobile Payment' },
+  { value: 'cheque', label: 'Cheque' }
+];
+
+const PAYMENT_STATUS_OPTIONS = [
+  { value: 'completed', label: 'Completed' },
+  { value: 'pending', label: 'Pending' },
+  { value: 'failed', label: 'Failed' },
+  { value: 'refunded', label: 'Refunded' }
 ];
 
 export default function TaskDetailsPage() {
@@ -55,8 +78,11 @@ export default function TaskDetailsPage() {
   const [sensitiveDataVisible, setSensitiveDataVisible] = useState({
     phone: false,
     address: false,
+    pinfl: false,
   });
   const [showCompleteModal, setShowCompleteModal] = useState(false);
+  const [showPaymentDetailsModal, setShowPaymentDetailsModal] = useState(false);
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [completingVisit, setCompletingVisit] = useState(false);
   const [uploadingEvidence, setUploadingEvidence] = useState(false);
   const [visitForm, setVisitForm] = useState({
@@ -64,6 +90,19 @@ export default function TaskDetailsPage() {
     notes: '',
     actualAmountCollected: ''
   });
+  const [paymentDetails, setPaymentDetails] = useState({
+    amount: '',
+    method: 'bank_transfer',
+    date: new Date().toISOString().split('T')[0],
+    status: 'completed',
+    transactionId: '',
+    notes: ''
+  });
+  const [showPaymentMethodDropdown, setShowPaymentMethodDropdown] = useState(false);
+  const [showPaymentStatusDropdown, setShowPaymentStatusDropdown] = useState(false);
+  const [showVisitRemarksModal, setShowVisitRemarksModal] = useState(false);
+  const [pendingVisitPhoto, setPendingVisitPhoto] = useState(null);
+  const [visitPhotoRemarks, setVisitPhotoRemarks] = useState('');
 
   const { data: taskData, isLoading, error, refetch } = useQuery({
     queryKey: ['task', id],
@@ -128,8 +167,10 @@ export default function TaskDetailsPage() {
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        // Upload photo using exact Documents tab logic
-        await uploadEvidencePhoto(result.assets[0]);
+        // Store photo and show remarks modal
+        setPendingVisitPhoto(result.assets[0]);
+        setVisitPhotoRemarks('');
+        setShowVisitRemarksModal(true);
       }
     } catch (error) { 
       console.error("Camera Error:", error);
@@ -137,7 +178,7 @@ export default function TaskDetailsPage() {
     }
   };
 
-  const uploadEvidencePhoto = async (photo) => {
+  const uploadEvidencePhoto = async (photo, remarks = '') => {
     setUploadingEvidence(true);
     try {
       const token = await authService.getToken();
@@ -153,7 +194,12 @@ export default function TaskDetailsPage() {
         type: 'image/jpeg',
         name: originalFileName,
       });
-      formData.append('description', `${originalFileName} uploaded from field visit`);
+      
+      // Add remarks/description
+      const description = remarks.trim() 
+        ? `${originalFileName} - ${remarks}` 
+        : `${originalFileName} uploaded from field visit`;
+      formData.append('description', description);
       formData.append('attachmentType', 'photo');
 
       const uploadPromise = new Promise((resolve, reject) => {
@@ -189,6 +235,15 @@ export default function TaskDetailsPage() {
     }
   };
 
+  const handleConfirmVisitUpload = async () => {
+    if (!pendingVisitPhoto) return;
+    
+    setShowVisitRemarksModal(false);
+    await uploadEvidencePhoto(pendingVisitPhoto, visitPhotoRemarks);
+    setPendingVisitPhoto(null);
+    setVisitPhotoRemarks('');
+  };
+
   const handleCompleteVisit = async () => {
     // Validation
     if (!visitForm.notes.trim()) {
@@ -202,12 +257,12 @@ export default function TaskDetailsPage() {
     }
 
     Alert.alert(
-      'Complete Visit',
+      'Update Status',
       'Are you sure you want to complete this visit?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Complete',
+          text: 'Update',
           onPress: async () => {
             try {
               setCompletingVisit(true);
@@ -223,21 +278,35 @@ export default function TaskDetailsPage() {
 
               Alert.alert(
                 "Success!", 
-                `Visit completed successfully!\n\n• Status: ${visitForm.status.replace(/_/g, ' ').toUpperCase()}\n• Amount: ${visitForm.actualAmountCollected}`,
+                `Update Status successfully!\n\n• Status: ${visitForm.status.replace(/_/g, ' ').toUpperCase()}\n• Amount: ${visitForm.actualAmountCollected}`,
                 [{ text: "OK", onPress: async () => {
                   setShowCompleteModal(false);
                   await refetch();
                 }}]
               );
             } catch (error) {
-              console.error("Complete Visit Error:", error);
-              Alert.alert("Error", error.message || "Could not complete visit.");
+              console.error("update status Error:", error);
+              Alert.alert("Error", error.message || "Could not update status.");
             } finally {
               setCompletingVisit(false);
             }
           }
         }
       ]
+    );
+  };
+
+  const handleAddPaymentDetails = () => {
+    // TODO: Add payment details submission logic here
+    console.log('Payment Details:', paymentDetails);
+    Alert.alert(
+      "Payment Details",
+      "Payment details will be submitted in future implementation.\n\nCurrent Details:\n" +
+      `Amount: ${paymentDetails.amount}\n` +
+      `Method: ${PAYMENT_METHODS.find(m => m.value === paymentDetails.method)?.label}\n` +
+      `Date: ${paymentDetails.date}\n` +
+      `Status: ${paymentDetails.status}`,
+      [{ text: "OK", onPress: () => setShowPaymentDetailsModal(false) }]
     );
   };
 
@@ -441,29 +510,67 @@ export default function TaskDetailsPage() {
             </View>
 
             <ScrollView style={{ maxHeight: '75%' }} contentContainerStyle={{ padding: 20 }}>
-              {/* Status Selection */}
+              {/* Status Selection with Dropdown */}
               <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600', marginBottom: 12 }}>Status</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
-                {STATUS_OPTIONS.map((option) => (
-                  <TouchableOpacity
-                    key={option.value}
-                    onPress={() => setVisitForm(prev => ({ ...prev, status: option.value }))}
-                    disabled={completingVisit}
-                    style={{
-                      backgroundColor: visitForm.status === option.value ? '#3b82f6' : '#0f172a',
-                      paddingHorizontal: 16,
-                      paddingVertical: 10,
-                      borderRadius: 8,
-                      borderWidth: 1,
-                      borderColor: visitForm.status === option.value ? '#3b82f6' : '#334155'
-                    }}
-                  >
-                    <Text style={{ color: visitForm.status === option.value ? '#ffffff' : '#64748b', fontSize: 14, fontWeight: '600' }}>
-                      {option.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <TouchableOpacity
+                onPress={() => setShowStatusDropdown(!showStatusDropdown)}
+                disabled={completingVisit}
+                style={{
+                  backgroundColor: '#0f172a',
+                  paddingHorizontal: 16,
+                  paddingVertical: 14,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: '#334155',
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: 8
+                }}
+              >
+                <Text style={{ color: '#ffffff', fontSize: 15 }}>
+                  {STATUS_OPTIONS.find(s => s.value === visitForm.status)?.label || 'Select Status'}
+                </Text>
+                <ChevronDown color="#64748b" size={20} />
+              </TouchableOpacity>
+
+              {showStatusDropdown && (
+                <View style={{
+                  backgroundColor: '#0f172a',
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: '#334155',
+                  marginBottom: 20,
+                  overflow: 'hidden'
+                }}>
+                  {STATUS_OPTIONS.map((option, index) => (
+                    <TouchableOpacity
+                      key={option.value}
+                      onPress={() => {
+                        setVisitForm(prev => ({ ...prev, status: option.value }));
+                        setShowStatusDropdown(false);
+                      }}
+                      style={{
+                        paddingHorizontal: 16,
+                        paddingVertical: 12,
+                        backgroundColor: visitForm.status === option.value ? '#334155' : 'transparent',
+                        borderBottomWidth: index < STATUS_OPTIONS.length - 1 ? 1 : 0,
+                        borderBottomColor: '#334155'
+                      }}
+                    >
+                      <Text style={{ 
+                        color: visitForm.status === option.value ? '#3b82f6' : '#ffffff',
+                        fontSize: 15,
+                        fontWeight: visitForm.status === option.value ? '600' : '400'
+                      }}>
+                        {option.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
+              {!showStatusDropdown && <View style={{ marginBottom: 20 }} />}
 
               {/* Amount Collected */}
               <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600', marginBottom: 8 }}>Amount Collected</Text>
@@ -513,6 +620,34 @@ export default function TaskDetailsPage() {
 
             {/* Action Buttons */}
             <View style={{ padding: 20, borderTopWidth: 1, borderTopColor: '#334155', gap: 12 }}>
+              {/* Add Payment Details Button */}
+              <TouchableOpacity
+                onPress={() => {
+                  setPaymentDetails({
+                    amount: visitForm.actualAmountCollected,
+                    method: 'bank_transfer',
+                    date: new Date().toISOString().split('T')[0],
+                    status: 'completed',
+                    transactionId: '',
+                    notes: ''
+                  });
+                  setShowPaymentDetailsModal(true);
+                }}
+                disabled={completingVisit}
+                style={{
+                  backgroundColor: '#3b82f6',
+                  borderRadius: 12,
+                  paddingVertical: 16,
+                  flexDirection: 'row',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  gap: 10
+                }}
+              >
+                <CreditCard color="#ffffff" size={20} />
+                <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '700' }}>Add Payment Details</Text>
+              </TouchableOpacity>
+
               <TouchableOpacity
                 onPress={handleCompleteVisit}
                 disabled={completingVisit}
@@ -534,7 +669,7 @@ export default function TaskDetailsPage() {
                 ) : (
                   <>
                     <Save color="#ffffff" size={20} />
-                    <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '700' }}>Complete Visit</Text>
+                    <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '700' }}>Update Status</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -542,6 +677,409 @@ export default function TaskDetailsPage() {
               <TouchableOpacity
                 onPress={() => setShowCompleteModal(false)}
                 disabled={completingVisit}
+                style={{
+                  backgroundColor: '#334155',
+                  borderRadius: 12,
+                  paddingVertical: 16,
+                  justifyContent: 'center',
+                  alignItems: 'center'
+                }}
+              >
+                <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600' }}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Visit Photo Remarks Modal */}
+      <Modal
+        visible={showVisitRemarksModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          setShowVisitRemarksModal(false);
+          setPendingVisitPhoto(null);
+          setVisitPhotoRemarks('');
+        }}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: '#1e293b', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: insets.bottom + 20 }}>
+            {/* Header */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, borderBottomWidth: 1, borderBottomColor: '#334155' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <FileText color="#10b981" size={24} />
+                <Text style={{ color: '#ffffff', fontSize: 20, fontWeight: 'bold' }}>Add Evidence Remarks</Text>
+              </View>
+              <TouchableOpacity 
+                onPress={() => {
+                  setShowVisitRemarksModal(false);
+                  setPendingVisitPhoto(null);
+                  setVisitPhotoRemarks('');
+                }}
+                disabled={uploadingEvidence}
+              >
+                <X color="#64748b" size={24} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={{ color: '#64748b', fontSize: 14, paddingHorizontal: 20, paddingTop: 16 }}>
+              Add remarks to justify this evidence photo for the visit.
+            </Text>
+
+            <View style={{ padding: 20 }}>
+              {/* Remarks Input */}
+              <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600', marginBottom: 8 }}>
+                Remarks / Notes
+              </Text>
+              <TextInput
+                style={{
+                  backgroundColor: '#0f172a',
+                  color: '#ffffff',
+                  fontSize: 15,
+                  padding: 14,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: '#334155',
+                  marginBottom: 20,
+                  minHeight: 120,
+                  textAlignVertical: 'top'
+                }}
+                placeholder="E.g., Debtor not at home, Property entrance, Meeting evidence, etc."
+                placeholderTextColor="#64748b"
+                multiline
+                numberOfLines={5}
+                value={visitPhotoRemarks}
+                onChangeText={setVisitPhotoRemarks}
+                autoFocus
+                editable={!uploadingEvidence}
+              />
+
+              {/* Action Buttons */}
+              <View style={{ gap: 12 }}>
+                <TouchableOpacity
+                  onPress={handleConfirmVisitUpload}
+                  disabled={uploadingEvidence}
+                  style={{
+                    backgroundColor: '#10b981',
+                    borderRadius: 12,
+                    paddingVertical: 16,
+                    flexDirection: 'row',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    gap: 10,
+                    opacity: uploadingEvidence ? 0.7 : 1
+                  }}
+                >
+                  {uploadingEvidence ? (
+                    <>
+                      <ActivityIndicator color="#ffffff" size="small" />
+                      <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '700' }}>Uploading...</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Camera color="#ffffff" size={20} />
+                      <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '700' }}>Upload Evidence</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => {
+                    setShowVisitRemarksModal(false);
+                    setPendingVisitPhoto(null);
+                    setVisitPhotoRemarks('');
+                  }}
+                  disabled={uploadingEvidence}
+                  style={{
+                    backgroundColor: '#334155',
+                    borderRadius: 12,
+                    paddingVertical: 16,
+                    justifyContent: 'center',
+                    alignItems: 'center'
+                  }}
+                >
+                  <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600' }}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Payment Details Modal */}
+      <Modal
+        visible={showPaymentDetailsModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowPaymentDetailsModal(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <TouchableOpacity 
+            style={{ flex: 1 }} 
+            activeOpacity={1} 
+            onPress={() => setShowPaymentDetailsModal(false)}
+          />
+          <View style={{ backgroundColor: '#1e293b', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '90%', paddingBottom: insets.bottom }}>
+            {/* Header */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, borderBottomWidth: 1, borderBottomColor: '#334155' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <CreditCard color="#3b82f6" size={24} />
+                <Text style={{ color: '#ffffff', fontSize: 20, fontWeight: 'bold' }}>Add New Payment</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowPaymentDetailsModal(false)}>
+                <X color="#64748b" size={24} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={{ color: '#64748b', fontSize: 14, paddingHorizontal: 20, paddingTop: 16 }}>
+              Enter the payment details for this debtor.
+            </Text>
+
+            <ScrollView style={{ maxHeight: '75%' }} contentContainerStyle={{ padding: 20 }}>
+              {/* Amount (UZS) */}
+              <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600', marginBottom: 8 }}>
+                Amount (UZS) <Text style={{ color: '#ef4444' }}>*</Text>
+              </Text>
+              <View style={{
+                backgroundColor: '#0f172a',
+                borderRadius: 8,
+                borderWidth: 1,
+                borderColor: '#334155',
+                marginBottom: 20,
+                flexDirection: 'row',
+                alignItems: 'center',
+                paddingRight: 14
+              }}>
+                <TextInput
+                  style={{
+                    flex: 1,
+                    color: '#ffffff',
+                    fontSize: 16,
+                    padding: 14,
+                  }}
+                  placeholder="0"
+                  placeholderTextColor="#64748b"
+                  keyboardType="numeric"
+                  value={paymentDetails.amount}
+                  onChangeText={(text) => setPaymentDetails(prev => ({ ...prev, amount: text }))}
+                />
+                <View style={{
+                  backgroundColor: '#334155',
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 6
+                }}>
+                  <Text style={{ color: '#ffffff', fontSize: 14, fontWeight: '600' }}>UZS</Text>
+                </View>
+              </View>
+
+              {/* Payment Method Dropdown */}
+              <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600', marginBottom: 8 }}>Method</Text>
+              <TouchableOpacity
+                onPress={() => setShowPaymentMethodDropdown(!showPaymentMethodDropdown)}
+                style={{
+                  backgroundColor: '#0f172a',
+                  paddingHorizontal: 16,
+                  paddingVertical: 14,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: '#3b82f6',
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: 8
+                }}
+              >
+                <Text style={{ color: '#3b82f6', fontSize: 15 }}>
+                  {PAYMENT_METHODS.find(m => m.value === paymentDetails.method)?.label || 'Select Method'}
+                </Text>
+                <ChevronDown color="#3b82f6" size={20} />
+              </TouchableOpacity>
+
+              {showPaymentMethodDropdown && (
+                <View style={{
+                  backgroundColor: '#0f172a',
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: '#334155',
+                  marginBottom: 20,
+                  overflow: 'hidden'
+                }}>
+                  {PAYMENT_METHODS.map((method, index) => (
+                    <TouchableOpacity
+                      key={method.value}
+                      onPress={() => {
+                        setPaymentDetails(prev => ({ ...prev, method: method.value }));
+                        setShowPaymentMethodDropdown(false);
+                      }}
+                      style={{
+                        paddingHorizontal: 16,
+                        paddingVertical: 12,
+                        backgroundColor: paymentDetails.method === method.value ? '#334155' : 'transparent',
+                        borderBottomWidth: index < PAYMENT_METHODS.length - 1 ? 1 : 0,
+                        borderBottomColor: '#334155'
+                      }}
+                    >
+                      <Text style={{ 
+                        color: paymentDetails.method === method.value ? '#3b82f6' : '#ffffff',
+                        fontSize: 15,
+                        fontWeight: paymentDetails.method === method.value ? '600' : '400'
+                      }}>
+                        {method.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
+              {!showPaymentMethodDropdown && <View style={{ marginBottom: 20 }} />}
+
+              {/* Date */}
+              <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600', marginBottom: 8 }}>
+                Date <Text style={{ color: '#ef4444' }}>*</Text>
+              </Text>
+              <View style={{
+                backgroundColor: '#0f172a',
+                borderRadius: 8,
+                borderWidth: 1,
+                borderColor: '#334155',
+                marginBottom: 20,
+                flexDirection: 'row',
+                alignItems: 'center',
+                paddingHorizontal: 14,
+                paddingVertical: 14
+              }}>
+                <Text style={{ color: '#3b82f6', fontSize: 16, flex: 1 }}>
+                  {paymentDetails.date}
+                </Text>
+                <Calendar color="#3b82f6" size={20} />
+              </View>
+
+              {/* Status Dropdown */}
+              <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600', marginBottom: 8 }}>Status</Text>
+              <TouchableOpacity
+                onPress={() => setShowPaymentStatusDropdown(!showPaymentStatusDropdown)}
+                style={{
+                  backgroundColor: '#0f172a',
+                  paddingHorizontal: 16,
+                  paddingVertical: 14,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: '#3b82f6',
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: 8
+                }}
+              >
+                <Text style={{ color: '#3b82f6', fontSize: 15 }}>
+                  {PAYMENT_STATUS_OPTIONS.find(s => s.value === paymentDetails.status)?.label || 'Select Status'}
+                </Text>
+                <ChevronDown color="#3b82f6" size={20} />
+              </TouchableOpacity>
+
+              {showPaymentStatusDropdown && (
+                <View style={{
+                  backgroundColor: '#0f172a',
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: '#334155',
+                  marginBottom: 20,
+                  overflow: 'hidden'
+                }}>
+                  {PAYMENT_STATUS_OPTIONS.map((status, index) => (
+                    <TouchableOpacity
+                      key={status.value}
+                      onPress={() => {
+                        setPaymentDetails(prev => ({ ...prev, status: status.value }));
+                        setShowPaymentStatusDropdown(false);
+                      }}
+                      style={{
+                        paddingHorizontal: 16,
+                        paddingVertical: 12,
+                        backgroundColor: paymentDetails.status === status.value ? '#334155' : 'transparent',
+                        borderBottomWidth: index < PAYMENT_STATUS_OPTIONS.length - 1 ? 1 : 0,
+                        borderBottomColor: '#334155'
+                      }}
+                    >
+                      <Text style={{ 
+                        color: paymentDetails.status === status.value ? '#3b82f6' : '#ffffff',
+                        fontSize: 15,
+                        fontWeight: paymentDetails.status === status.value ? '600' : '400'
+                      }}>
+                        {status.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
+              {!showPaymentStatusDropdown && <View style={{ marginBottom: 20 }} />}
+
+              {/* Transaction ID */}
+              <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600', marginBottom: 8 }}>Transaction ID</Text>
+              <TextInput
+                style={{
+                  backgroundColor: '#0f172a',
+                  color: '#3b82f6',
+                  fontSize: 16,
+                  padding: 14,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: '#334155',
+                  marginBottom: 20
+                }}
+                placeholder="Optional"
+                placeholderTextColor="#64748b"
+                value={paymentDetails.transactionId}
+                onChangeText={(text) => setPaymentDetails(prev => ({ ...prev, transactionId: text }))}
+              />
+
+              {/* Notes */}
+              <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600', marginBottom: 8 }}>Notes</Text>
+              <TextInput
+                style={{
+                  backgroundColor: '#0f172a',
+                  color: '#ffffff',
+                  fontSize: 15,
+                  padding: 14,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: '#334155',
+                  marginBottom: 20,
+                  minHeight: 80,
+                  textAlignVertical: 'top'
+                }}
+                placeholder="Add any additional notes..."
+                placeholderTextColor="#64748b"
+                multiline
+                numberOfLines={3}
+                value={paymentDetails.notes}
+                onChangeText={(text) => setPaymentDetails(prev => ({ ...prev, notes: text }))}
+              />
+            </ScrollView>
+
+            {/* Action Buttons */}
+            <View style={{ padding: 20, borderTopWidth: 1, borderTopColor: '#334155', gap: 12 }}>
+              <TouchableOpacity
+                onPress={handleAddPaymentDetails}
+                style={{
+                  backgroundColor: '#10b981',
+                  borderRadius: 12,
+                  paddingVertical: 16,
+                  flexDirection: 'row',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  gap: 10
+                }}
+              >
+                <Save color="#ffffff" size={20} />
+                <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '700' }}>Add Payment</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => setShowPaymentDetailsModal(false)}
                 style={{
                   backgroundColor: '#334155',
                   borderRadius: 12,
@@ -792,6 +1330,9 @@ function DocumentsTab({ taskId }) {
   const [loading, setLoading] = React.useState(true);
   const [downloadingIds, setDownloadingIds] = React.useState({});
   const [uploading, setUploading] = React.useState(false);
+  const [showRemarksModal, setShowRemarksModal] = React.useState(false);
+  const [pendingPhoto, setPendingPhoto] = React.useState(null);
+  const [photoRemarks, setPhotoRemarks] = React.useState('');
 
   React.useEffect(() => { fetchDocuments(); }, [taskId]);
 
@@ -849,7 +1390,10 @@ function DocumentsTab({ taskId }) {
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        await handleUpload(result.assets[0]);
+        // Store photo and show remarks modal
+        setPendingPhoto(result.assets[0]);
+        setPhotoRemarks('');
+        setShowRemarksModal(true);
       }
     } catch (error) { 
       console.error("Camera Error:", error);
@@ -857,7 +1401,7 @@ function DocumentsTab({ taskId }) {
     }
   };
 
-  const handleUpload = async (photo) => {
+  const handleUpload = async (photo, remarks = '') => {
     setUploading(true);
     try {
       const token = await authService.getToken();
@@ -873,7 +1417,12 @@ function DocumentsTab({ taskId }) {
         type: 'image/jpeg',
         name: originalFileName,
       });
-      formData.append('description', `${originalFileName} uploaded from field visit`);
+      
+      // Add remarks/description
+      const description = remarks.trim() 
+        ? `${originalFileName} - ${remarks}` 
+        : `${originalFileName} uploaded from field visit`;
+      formData.append('description', description);
       formData.append('attachmentType', 'photo');
 
       const uploadPromise = new Promise((resolve, reject) => {
@@ -902,7 +1451,17 @@ function DocumentsTab({ taskId }) {
       setUploading(false);
     }
   };
-const handleDownload = async (doc) => {
+
+  const handleConfirmUpload = async () => {
+    if (!pendingPhoto) return;
+    
+    setShowRemarksModal(false);
+    await handleUpload(pendingPhoto, photoRemarks);
+    setPendingPhoto(null);
+    setPhotoRemarks('');
+  };
+
+  const handleDownload = async (doc) => {
     setDownloadingIds(prev => ({ ...prev, [doc.id]: true }));
     try {
       const token = await authService.getToken();
@@ -1127,6 +1686,119 @@ const handleDownload = async (doc) => {
           );
         })
       )}
+
+      {/* Remarks Modal */}
+      <Modal
+        visible={showRemarksModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          setShowRemarksModal(false);
+          setPendingPhoto(null);
+          setPhotoRemarks('');
+        }}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: '#1e293b', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 40 }}>
+            {/* Header */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, borderBottomWidth: 1, borderBottomColor: '#334155' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <FileText color="#3b82f6" size={24} />
+                <Text style={{ color: '#ffffff', fontSize: 20, fontWeight: 'bold' }}>Add Remarks</Text>
+              </View>
+              <TouchableOpacity 
+                onPress={() => {
+                  setShowRemarksModal(false);
+                  setPendingPhoto(null);
+                  setPhotoRemarks('');
+                }}
+              >
+                <X color="#64748b" size={24} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={{ color: '#64748b', fontSize: 14, paddingHorizontal: 20, paddingTop: 16 }}>
+              Add remarks or notes to justify this attachment.
+            </Text>
+
+            <View style={{ padding: 20 }}>
+              {/* Remarks Input */}
+              <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600', marginBottom: 8 }}>
+                Remarks / Notes
+              </Text>
+              <TextInput
+                style={{
+                  backgroundColor: '#0f172a',
+                  color: '#ffffff',
+                  fontSize: 15,
+                  padding: 14,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: '#334155',
+                  marginBottom: 20,
+                  minHeight: 120,
+                  textAlignVertical: 'top'
+                }}
+                placeholder="E.g., Front view of property, Customer signature, Payment receipt, etc."
+                placeholderTextColor="#64748b"
+                multiline
+                numberOfLines={5}
+                value={photoRemarks}
+                onChangeText={setPhotoRemarks}
+                autoFocus
+              />
+
+              {/* Action Buttons */}
+              <View style={{ gap: 12 }}>
+                <TouchableOpacity
+                  onPress={handleConfirmUpload}
+                  disabled={uploading}
+                  style={{
+                    backgroundColor: '#10b981',
+                    borderRadius: 12,
+                    paddingVertical: 16,
+                    flexDirection: 'row',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    gap: 10,
+                    opacity: uploading ? 0.7 : 1
+                  }}
+                >
+                  {uploading ? (
+                    <>
+                      <ActivityIndicator color="#ffffff" size="small" />
+                      <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '700' }}>Uploading...</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Camera color="#ffffff" size={20} />
+                      <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '700' }}>Upload Photo</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => {
+                    setShowRemarksModal(false);
+                    setPendingPhoto(null);
+                    setPhotoRemarks('');
+                  }}
+                  disabled={uploading}
+                  style={{
+                    backgroundColor: '#334155',
+                    borderRadius: 12,
+                    paddingVertical: 16,
+                    justifyContent: 'center',
+                    alignItems: 'center'
+                  }}
+                >
+                  <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600' }}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1168,6 +1840,7 @@ function TaskInfoTab({ taskData, agent, formatCurrency, formatDate, formatTime, 
       </Text>
 
       <InfoCard icon={User} label="Debtor Name" value={taskData.debtorName} onCopy={copyToClipboard} />
+      <InfoCard icon={User} label="PINFL" value={taskData.pinfl || taskData.debtorPinfl} onCopy={copyToClipboard} sensitive={true} sensitiveKey="pinfl" />
       <InfoCard icon={Phone} label="Phone Number" value={taskData.debtorPhone} onCopy={copyToClipboard} sensitive={true} sensitiveKey="phone" />
       <InfoCard icon={MapPin} label="Address" value={taskData.debtorAddress || taskData.address} sensitive={true} sensitiveKey="address" />
       <InfoCard icon={Calendar} label="Scheduled Date" value={formatDate(taskData.scheduledDate)} />
