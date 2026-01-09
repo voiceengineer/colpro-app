@@ -6,7 +6,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Search, Briefcase, Calendar, DollarSign, AlertCircle, User, Phone, Copy } from 'lucide-react-native';
+import { Search, Briefcase, Calendar, DollarSign, AlertCircle, User, Phone, Copy, ArrowLeft } from 'lucide-react-native';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
 import { casesService } from '../../lib/services/casesService';
@@ -336,9 +336,25 @@ export default function Cases() {
         paddingHorizontal: 24, 
         paddingBottom: 16 
       }}>
-        <Text style={{ color: '#ffffff', fontSize: 28, fontWeight: 'bold', marginBottom: 16 }}>
-          Cases
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={{
+              padding: 8,
+              marginRight: 12,
+              borderRadius: 8,
+              backgroundColor: '#1e293b',
+              borderWidth: 1,
+              borderColor: '#334155',
+            }}
+          >
+            <ArrowLeft color="#ffffff" size={24} />
+          </TouchableOpacity>
+          
+          <Text style={{ color: '#ffffff', fontSize: 28, fontWeight: 'bold' }}>
+            Cases
+          </Text>
+        </View>
 
         <View style={{
           backgroundColor: '#1e293b',

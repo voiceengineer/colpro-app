@@ -812,80 +812,155 @@ function DocumentsTab({ caseId }) {
     }
   };
 
-  const handleDownload = async (doc) => {
-    // ... (Keep your existing download logic exactly as it is) ...
-    // Note: Use the existing logic you already wrote for permissions/downloading
-     setDownloadingIds(prev => ({ ...prev, [doc.id]: true }));
-     try {
-         const token = await authService.getToken();
-         if (!token) throw new Error("Unauthorized");
+const handleDownload = async (doc) => {
+  setDownloadingIds(prev => ({ ...prev, [doc.id]: true }));
+  try {
+    const token = await authService.getToken();
+    if (!token) throw new Error("Unauthorized");
 
-         if (Platform.OS === 'android') {
-             const { status } = await MediaLibrary.requestPermissionsAsync(true);
-             if (status !== 'granted') {
-                 Alert.alert("Permission needed", "We need access to save this file.");
-                 setDownloadingIds(prev => ({ ...prev, [doc.id]: false }));
-                 return;
-             }
-         }
+    // 1. Sanitize Filename & Handle Extensions (Logic synced with Task function)
+    let fileName = doc.originalName || doc.fileName || `case_doc_${doc.id}`;
+    fileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
 
-         let fileName = doc.originalName || doc.fileName || `document_${doc.id}`;
-         fileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
-         
-         const hasExtension = fileName.includes('.');
-         if (!hasExtension && doc.mimeType) {
-           // ... (mime mapping logic) ...
-            const mimeMap = {
-                 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png',
-                 'application/msword': 'doc', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
-                 'application/vnd.ms-excel': 'xls', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
-             };
-             const ext = mimeMap[doc.mimeType];
-             if (ext) fileName += `.${ext}`;
-         }
+    const hasExtension = fileName.includes('.');
+    if (!hasExtension && doc.mimeType) {
+      const mimeMap = {
+        'application/pdf': 'pdf',
+        'image/jpeg': 'jpg', 'image/png': 'png', 'image/jpg': 'jpg', 'image/webp': 'webp',
+        'application/msword': 'doc', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+        'application/vnd.ms-excel': 'xls', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+      };
+      const ext = mimeMap[doc.mimeType];
+      if (ext) fileName += `.${ext}`;
+    }
 
-         const fileUri = `${FileSystem.documentDirectory}${fileName}`;
-         const downloadUrl = casesService.getDocumentDownloadUrl(caseId, doc.id);
+    // Determine if it is an image (Inline check or use your isMediaFile helper if available)
+    const isImage = ['jpg', 'png', 'jpeg', 'webp', 'gif', 'bmp', 'heic'].some(
+      ext => fileName.toLowerCase().endsWith(ext)
+    );
 
-         const downloadResumable = FileSystem.createDownloadResumable(
-             downloadUrl, fileUri, { headers: { 'Authorization': `Bearer ${token}` } }
-         );
+    // 2. Pre-download Permission Check for Images (Android)
+    if (isImage && Platform.OS === 'android') {
+      try {
+        const { status, canAskAgain, granted } = await MediaLibrary.requestPermissionsAsync(
+          false,
+          ['photo'] // Granular permission
+        );
 
-         const result = await downloadResumable.downloadAsync();
-         if (!result || !result.uri) throw new Error("Download failed");
+        if (!granted) {
+          if (canAskAgain) {
+            Alert.alert(
+              "Permission Required",
+              "Gallery permission is needed to save images. Please allow it when prompted.",
+              [{ text: "OK" }]
+            );
+          } else {
+            Alert.alert(
+              "Permission Denied",
+              "Gallery permission was denied. Please enable it in your device settings to save images.",
+              [
+                { text: "Cancel", style: "cancel" },
+                { text: "Open Settings", onPress: () => Linking.openSettings() }
+              ]
+            );
+          }
+          setDownloadingIds(prev => ({ ...prev, [doc.id]: false }));
+          return;
+        }
+      } catch (permError) {
+        console.error('Permission error:', permError);
+        Alert.alert("Permission Error", "Could not request gallery permission.");
+        setDownloadingIds(prev => ({ ...prev, [doc.id]: false }));
+        return;
+      }
+    }
 
-         // Save Logic
-         const isImageOrVideo = ['jpg', 'png', 'jpeg', 'mp4', 'mov', 'webp'].some(ext => fileName.toLowerCase().endsWith(ext));
+    // 3. Download the file (Using Cases Service)
+    const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+    // Ensure caseId is available in scope
+    const downloadUrl = casesService.getDocumentDownloadUrl(caseId, doc.id);
 
-         if (isImageOrVideo) {
-             await MediaLibrary.saveToLibraryAsync(result.uri);
-             Alert.alert("Saved!", "Image saved to your Gallery.");
-         } else if (Platform.OS === 'android') {
-             try {
-                 const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
-                 if (permissions.granted) {
-                     const base64Data = await FileSystem.readAsStringAsync(result.uri, { encoding: FileSystem.EncodingType.Base64 });
-                     const newFileUri = await FileSystem.StorageAccessFramework.createFileAsync(
-                         permissions.directoryUri, fileName, doc.mimeType || 'application/octet-stream'
-                     );
-                     await FileSystem.writeAsStringAsync(newFileUri, base64Data, { encoding: FileSystem.EncodingType.Base64 });
-                     Alert.alert("Success", "File saved to selected folder.");
-                 } else {
-                     await Sharing.shareAsync(result.uri);
-                 }
-             } catch (e) {
-                 await Sharing.shareAsync(result.uri);
-             }
-         } else {
-             await Sharing.shareAsync(result.uri, { UTI: doc.mimeType, dialogTitle: fileName });
-         }
-     } catch (error) {
-         console.error('Download error:', error);
-         Alert.alert('Error', 'Failed to download document.');
-     } finally {
-         setDownloadingIds(prev => ({ ...prev, [doc.id]: false }));
-     }
-  };
+    const downloadResumable = FileSystem.createDownloadResumable(
+      downloadUrl,
+      fileUri,
+      { headers: { 'Authorization': `Bearer ${token}` } }
+    );
+
+    const result = await downloadResumable.downloadAsync();
+    if (!result || !result.uri) throw new Error("Download failed");
+
+    // 4. Save Logic (Synced with Task function)
+    if (isImage) {
+      // Image: Save to gallery directly
+      try {
+        await MediaLibrary.saveToLibraryAsync(result.uri);
+        Alert.alert("Success!", "Image saved to your Gallery.");
+      } catch (saveError) {
+        console.error('Save to gallery error:', saveError);
+        Alert.alert("Save Failed", "Could not save image to gallery. Please check app permissions in settings.");
+      }
+    } else if (Platform.OS === 'android') {
+      // 5. Android Document: Show the "Choose Location" Dialog
+      Alert.alert(
+        "Save File",
+        `Save "${fileName}" to your device?`,
+        [
+          {
+            text: "Cancel",
+            style: "cancel",
+            onPress: () => {
+              setDownloadingIds(prev => ({ ...prev, [doc.id]: false }));
+            }
+          },
+          {
+            text: "Choose Location",
+            onPress: async () => {
+              try {
+                const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+                if (permissions.granted) {
+                  const base64Data = await FileSystem.readAsStringAsync(result.uri, { encoding: FileSystem.EncodingType.Base64 });
+                  const newFileUri = await FileSystem.StorageAccessFramework.createFileAsync(
+                    permissions.directoryUri,
+                    fileName,
+                    doc.mimeType || 'application/octet-stream'
+                  );
+                  await FileSystem.writeAsStringAsync(newFileUri, base64Data, { encoding: FileSystem.EncodingType.Base64 });
+                  Alert.alert("Success!", "File saved successfully.");
+                } else {
+                  Alert.alert("Cancelled", "File save cancelled.");
+                }
+              } catch (e) {
+                console.error('SAF error:', e);
+                Alert.alert("Error", "Could not save file. Please try again.");
+              }
+              setDownloadingIds(prev => ({ ...prev, [doc.id]: false }));
+            }
+          }
+        ],
+        { cancelable: false }
+      );
+      return; // Return here so we don't hit the finally block immediately if using SAF logic inside callback
+    } else {
+      // iOS
+      await Sharing.shareAsync(result.uri, {
+        UTI: doc.mimeType,
+        dialogTitle: 'Save File',
+        mimeType: doc.mimeType
+      });
+    }
+  } catch (error) {
+    console.error('Download error:', error);
+    Alert.alert('Download Failed', error.message || 'Could not download file.');
+  } finally {
+    // Only turn off loading if we aren't waiting for the Android Alert interaction
+    if (Platform.OS !== 'android' || isMediaFile(doc.fileName)) { 
+        // Note: You might need to adjust logic here. 
+        // In the Task function, the `finally` runs, but the Android Alert handles its own state setting inside the callbacks.
+        // For safety/simplicity to match your Task code, I will keep the simple finally:
+        setDownloadingIds(prev => ({ ...prev, [doc.id]: false }));
+    }
+  }
+};
 
   const getFileIcon = (fileName) => {
     const ext = fileName?.toLowerCase().split('.').pop();

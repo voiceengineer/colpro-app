@@ -1,8 +1,9 @@
+
 import React, { useState } from 'react';
 import { 
   View, Text, TouchableOpacity, ScrollView, 
   ActivityIndicator, Alert, Dimensions, RefreshControl,
-  Modal, Platform, Image
+  Modal, Platform, Image, Linking
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -263,6 +264,7 @@ function ProductsTab({ caseId, formatCurrency }) {
   );
 }
 
+// Documents Tab
 function DocumentsTab({ taskId }) {
   const [documents, setDocuments] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
@@ -284,10 +286,45 @@ function DocumentsTab({ taskId }) {
 
   const handleLaunchCamera = async () => {
     try {
-      const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
-      if (!permissionResult.granted) { 
-        Alert.alert("Permission Required", "Camera access is needed to take photos."); 
-        return; 
+      // Check and request camera permission with custom alert
+      const { status: existingStatus } = await ImagePicker.getCameraPermissionsAsync();
+      
+      let finalStatus = existingStatus;
+      
+      if (existingStatus !== 'granted') {
+        const granted = await new Promise((resolve) => {
+          Alert.alert(
+            "Camera Permission Required",
+            "CollPro needs access to your camera to take photos for task documentation.",
+            [
+              {
+                text: "Deny",
+                onPress: () => resolve(false),
+                style: "cancel"
+              },
+              {
+                text: "Allow",
+                onPress: async () => {
+                  const { status } = await ImagePicker.requestCameraPermissionsAsync();
+                  resolve(status === 'granted');
+                }
+              }
+            ],
+            { cancelable: false }
+          );
+        });
+        
+        if (!granted) {
+          Alert.alert(
+            "Permission Denied",
+            "Camera permission is required to take photos. Please enable it in your device settings.",
+            [
+              { text: "Cancel", style: "cancel" },
+              { text: "Open Settings", onPress: () => Linking.openSettings() }
+            ]
+          );
+          return;
+        }
       }
 
       const result = await ImagePicker.launchCameraAsync({
@@ -356,20 +393,11 @@ function DocumentsTab({ taskId }) {
     }
   };
 
-  const handleDownload = async (doc) => {
+const handleDownload = async (doc) => {
     setDownloadingIds(prev => ({ ...prev, [doc.id]: true }));
     try {
       const token = await authService.getToken();
       if (!token) throw new Error("Unauthorized");
-      
-      if (Platform.OS === 'android') {
-        const { status } = await MediaLibrary.requestPermissionsAsync(true);
-        if (status !== 'granted') {
-          Alert.alert("Permission needed", "We need access to save this file.");
-          setDownloadingIds(prev => ({ ...prev, [doc.id]: false }));
-          return;
-        }
-      }
 
       let fileName = doc.originalName || doc.fileName || `task_doc_${doc.id}`;
       fileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -385,6 +413,48 @@ function DocumentsTab({ taskId }) {
         if (ext) fileName += `.${ext}`;
       }
 
+      const isImage = isMediaFile(fileName);
+      
+      // For images, request permission (system will show native dialog automatically)
+      if (isImage && Platform.OS === 'android') {
+        try {
+          // Use granular permissions - only request 'photo' to avoid AUDIO permission error
+          const { status, canAskAgain, granted } = await MediaLibrary.requestPermissionsAsync(
+            false, 
+            ['photo'] // Only request photo permission
+          );
+          
+          if (!granted) {
+            // User denied permission
+            if (canAskAgain) {
+              Alert.alert(
+                "Permission Required",
+                "Gallery permission is needed to save images. Please allow it when prompted.",
+                [{ text: "OK" }]
+              );
+            } else {
+              // User denied with "Don't ask again"
+              Alert.alert(
+                "Permission Denied",
+                "Gallery permission was denied. Please enable it in your device settings to save images.",
+                [
+                  { text: "Cancel", style: "cancel" },
+                  { text: "Open Settings", onPress: () => Linking.openSettings() }
+                ]
+              );
+            }
+            setDownloadingIds(prev => ({ ...prev, [doc.id]: false }));
+            return;
+          }
+        } catch (permError) {
+          console.error('Permission error:', permError);
+          Alert.alert("Permission Error", "Could not request gallery permission.");
+          setDownloadingIds(prev => ({ ...prev, [doc.id]: false }));
+          return;
+        }
+      }
+
+      // Download the file
       const fileUri = `${FileSystem.documentDirectory}${fileName}`;
       const downloadUrl = tasksService.getAttachmentDownloadUrl(doc.id); 
       
@@ -395,32 +465,66 @@ function DocumentsTab({ taskId }) {
       const result = await downloadResumable.downloadAsync();
       if (!result || !result.uri) throw new Error("Download failed");
 
-      const isImage = isMediaFile(fileName);
+      // Save based on file type
       if (isImage) {
-        await MediaLibrary.saveToLibraryAsync(result.uri);
-        Alert.alert("Saved!", "Image saved to your Gallery.");
-      } else if (Platform.OS === 'android') {
+        // Permission already granted, save to gallery
         try {
-          const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
-          if (permissions.granted) {
-            const base64Data = await FileSystem.readAsStringAsync(result.uri, { encoding: FileSystem.EncodingType.Base64 });
-            const newFileUri = await FileSystem.StorageAccessFramework.createFileAsync(
-              permissions.directoryUri, fileName, doc.mimeType || 'application/octet-stream'
-            );
-            await FileSystem.writeAsStringAsync(newFileUri, base64Data, { encoding: FileSystem.EncodingType.Base64 });
-            Alert.alert("Success", "File saved.");
-          } else {
-            await Sharing.shareAsync(result.uri);
-          }
-        } catch (e) {
-          await Sharing.shareAsync(result.uri);
+          await MediaLibrary.saveToLibraryAsync(result.uri);
+          Alert.alert("Success!", "Image saved to your Gallery.");
+        } catch (saveError) {
+          console.error('Save to gallery error:', saveError);
+          Alert.alert("Save Failed", "Could not save image to gallery. Please check app permissions in settings.");
         }
+      } else if (Platform.OS === 'android') {
+        // For non-image files on Android, use SAF
+        Alert.alert(
+          "Save File",
+          `Save "${fileName}" to your device?`,
+          [
+            { 
+              text: "Cancel", 
+              style: "cancel",
+              onPress: () => {
+                setDownloadingIds(prev => ({ ...prev, [doc.id]: false }));
+              }
+            },
+            {
+              text: "Choose Location",
+              onPress: async () => {
+                try {
+                  const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+                  if (permissions.granted) {
+                    const base64Data = await FileSystem.readAsStringAsync(result.uri, { encoding: FileSystem.EncodingType.Base64 });
+                    const newFileUri = await FileSystem.StorageAccessFramework.createFileAsync(
+                      permissions.directoryUri, fileName, doc.mimeType || 'application/octet-stream'
+                    );
+                    await FileSystem.writeAsStringAsync(newFileUri, base64Data, { encoding: FileSystem.EncodingType.Base64 });
+                    Alert.alert("Success!", "File saved successfully.");
+                  } else {
+                    Alert.alert("Cancelled", "File save cancelled.");
+                  }
+                } catch (e) {
+                  console.error('SAF error:', e);
+                  Alert.alert("Error", "Could not save file. Please try again.");
+                }
+                setDownloadingIds(prev => ({ ...prev, [doc.id]: false }));
+              }
+            }
+          ],
+          { cancelable: false }
+        );
+        return;
       } else {
-        await Sharing.shareAsync(result.uri, { UTI: doc.mimeType, dialogTitle: fileName });
+        // iOS
+        await Sharing.shareAsync(result.uri, { 
+          UTI: doc.mimeType, 
+          dialogTitle: 'Save File',
+          mimeType: doc.mimeType 
+        });
       }
     } catch (error) {
       console.error('Download error:', error);
-      Alert.alert('Error', 'Failed to download.');
+      Alert.alert('Download Failed', error.message || 'Could not download file.');
     } finally {
       setDownloadingIds(prev => ({ ...prev, [doc.id]: false }));
     }
@@ -441,7 +545,7 @@ function DocumentsTab({ taskId }) {
 
   return (
     <View>
-      {/* 1. UPLOAD BUTTON (Always Visible) */}
+      {/* Upload Button */}
       <TouchableOpacity 
         onPress={handleLaunchCamera} 
         disabled={uploading}
@@ -480,7 +584,7 @@ function DocumentsTab({ taskId }) {
         Documents & Photos ({documents.length})
       </Text>
 
-      {/* 2. CONDITIONAL RENDERING: Empty State OR List */}
+      {/* Documents List or Empty State */}
       {documents.length === 0 ? (
         <View style={{ alignItems: 'center', paddingVertical: 40, opacity: 0.8 }}>
           <FileText color="#64748b" size={48} />
