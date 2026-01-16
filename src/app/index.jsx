@@ -1,24 +1,122 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useRouter } from 'expo-router';
-import { View, Text, ActivityIndicator, StyleSheet, Animated } from 'react-native';
+import { View, Text, StyleSheet, Animated, Image, Dimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useAuth } from '../lib/authContext';
-import { Lock } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+
+const { width, height } = Dimensions.get('window');
 
 export default function Index() {
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuth();
-  const [fadeAnim] = useState(new Animated.Value(0));
+  
+  // Animation values
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const logoScale = useRef(new Animated.Value(0.5)).current;
+  const logoOpacity = useRef(new Animated.Value(0)).current;
+  const taglineSlide = useRef(new Animated.Value(30)).current;
+  const dotsOpacity = useRef(new Animated.Value(0)).current;
+  
+  // Dot animations
+  const dot1Scale = useRef(new Animated.Value(1)).current;
+  const dot2Scale = useRef(new Animated.Value(1)).current;
+  const dot3Scale = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    // Fade in animation
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 1000,
-      useNativeDriver: true,
-    }).start();
+    // Entrance animation sequence
+    Animated.sequence([
+      // Logo entrance
+      Animated.parallel([
+        Animated.timing(logoOpacity, {
+          toValue: 1,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+        Animated.spring(logoScale, {
+          toValue: 1,
+          tension: 50,
+          friction: 7,
+          useNativeDriver: true,
+        }),
+      ]),
+      // Tagline slide in
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+        Animated.timing(taglineSlide, {
+          toValue: 0,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+      ]),
+      // Dots fade in
+      Animated.timing(dotsOpacity, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+    ]).start();
 
-    // Wait for auth to load then redirect
+    // Pulsing dots animation
+    setTimeout(() => {
+      // Dot 1
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(dot1Scale, {
+            toValue: 1.3,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(dot1Scale, {
+            toValue: 1,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+
+      // Dot 2 - delayed
+      setTimeout(() => {
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(dot2Scale, {
+              toValue: 1.3,
+              duration: 500,
+              useNativeDriver: true,
+            }),
+            Animated.timing(dot2Scale, {
+              toValue: 1,
+              duration: 500,
+              useNativeDriver: true,
+            }),
+          ])
+        ).start();
+      }, 200);
+
+      // Dot 3 - more delayed
+      setTimeout(() => {
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(dot3Scale, {
+              toValue: 1.3,
+              duration: 500,
+              useNativeDriver: true,
+            }),
+            Animated.timing(dot3Scale, {
+              toValue: 1,
+              duration: 500,
+              useNativeDriver: true,
+            }),
+          ])
+        ).start();
+      }, 400);
+    }, 1200);
+
+    // Navigation logic
     if (!isLoading) {
       const timer = setTimeout(() => {
         if (isAuthenticated) {
@@ -26,34 +124,125 @@ export default function Index() {
         } else {
           router.replace('/login');
         }
-      }, 1500); // 1.5 second splash delay
+      }, 3000);
 
       return () => clearTimeout(timer);
     }
-  }, [isLoading, isAuthenticated]);
+  }, [isLoading, isAuthenticated, router]);
 
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
       
-      {/* Background Gradients (Same as Login/Profile) */}
-      <View style={styles.backgroundContainer}>
-        <View style={styles.blueBlob} />
-        <View style={styles.purpleBlob} />
-        <View style={styles.orangeBlob} />
+      {/* Gradient Background */}
+      <View style={styles.gradientContainer}>
+        <View style={[styles.gradientBlob, styles.blob1]} />
+        <View style={[styles.gradientBlob, styles.blob2]} />
+        <View style={[styles.gradientBlob, styles.blob3]} />
       </View>
 
-      <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
-        <View style={styles.logoContainer}>
-          <Lock color="#ffffff" size={48} strokeWidth={2} />
-        </View>
-        <Text style={styles.title}>Welcome to</Text>
-        <Text style={styles.appName}>Coll Pro</Text>
-        
-        <View style={styles.loaderContainer}>
-          <ActivityIndicator size="large" color="#3b82f6" />
-        </View>
-      </Animated.View>
+      {/* Grid Pattern Overlay */}
+      <View style={styles.gridOverlay}>
+        {[...Array(20)].map((_, i) => (
+          <View key={`h-${i}`} style={[styles.gridLine, { top: i * (height / 20) }]} />
+        ))}
+        {[...Array(10)].map((_, i) => (
+          <View key={`v-${i}`} style={[styles.gridLineVertical, { left: i * (width / 10) }]} />
+        ))}
+      </View>
+
+      {/* Main Content */}
+      <View style={styles.content}>
+        {/* Logo Section */}
+        <Animated.View
+          style={[
+            styles.logoContainer,
+            {
+              opacity: logoOpacity,
+              transform: [{ scale: logoScale }],
+            },
+          ]}
+        >
+          <Image
+            source={require('../../assets/images/transparent-logo.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+        </Animated.View>
+
+        {/* Tagline */}
+        <Animated.View
+          style={[
+            styles.taglineContainer,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: taglineSlide }],
+            },
+          ]}
+        >
+          <View style={styles.taglineBox}>
+            <Text style={styles.tagline}>COLLECTION MANAGEMENT</Text>
+            <View style={styles.divider} />
+            <Text style={styles.taglineSecondary}>Professional Platform</Text>
+          </View>
+        </Animated.View>
+
+        {/* Loading Section */}
+        <Animated.View
+          style={[
+            styles.loadingSection,
+            { opacity: dotsOpacity }
+          ]}
+        >
+          <View style={styles.dotsWrapper}>
+            <Animated.View
+              style={[
+                styles.dot,
+                {
+                  transform: [{ scale: dot1Scale }],
+                  opacity: dot1Scale.interpolate({
+                    inputRange: [1, 1.3],
+                    outputRange: [0.5, 1],
+                  }),
+                },
+              ]}
+            />
+            <Animated.View
+              style={[
+                styles.dot,
+                {
+                  transform: [{ scale: dot2Scale }],
+                  opacity: dot2Scale.interpolate({
+                    inputRange: [1, 1.3],
+                    outputRange: [0.5, 1],
+                  }),
+                },
+              ]}
+            />
+            <Animated.View
+              style={[
+                styles.dot,
+                {
+                  transform: [{ scale: dot3Scale }],
+                  opacity: dot3Scale.interpolate({
+                    inputRange: [1, 1.3],
+                    outputRange: [0.5, 1],
+                  }),
+                },
+              ]}
+            />
+          </View>
+          <Text style={styles.loadingText}>Preparing your workspace</Text>
+        </Animated.View>
+      </View>
+
+      {/* Decorative Elements */}
+      <View style={styles.decorativeElements}>
+        <View style={[styles.floatingCircle, styles.circle1]} />
+        <View style={[styles.floatingCircle, styles.circle2]} />
+        <View style={[styles.floatingCircle, styles.circle3]} />
+        <View style={[styles.floatingCircle, styles.circle4]} />
+      </View>
     </View>
   );
 }
@@ -61,79 +250,171 @@ export default function Index() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#0f172a',
+    backgroundColor: '#0a0e1a',
   },
-  backgroundContainer: {
+  gradientContainer: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    width: '100%',
+    height: '100%',
   },
-  blueBlob: {
+  gradientBlob: {
     position: 'absolute',
+    borderRadius: 9999,
+  },
+  blob1: {
+    width: 400,
+    height: 400,
+    backgroundColor: '#1e40af',
+    opacity: 0.08,
     top: -100,
     right: -100,
+  },
+  blob2: {
+    width: 350,
+    height: 350,
+    backgroundColor: '#7c3aed',
+    opacity: 0.06,
+    bottom: -80,
+    left: -80,
+  },
+  blob3: {
     width: 300,
     height: 300,
-    backgroundColor: '#3b82f6',
-    opacity: 0.1,
-    borderRadius: 150,
-  },
-  purpleBlob: {
-    position: 'absolute',
-    bottom: 100,
-    left: -80,
-    width: 250,
-    height: 250,
-    backgroundColor: '#8b5cf6',
-    opacity: 0.08,
-    borderRadius: 125,
-  },
-  orangeBlob: {
-    position: 'absolute',
-    top: '40%',
-    left: '20%',
-    width: 200,
-    height: 200,
-    backgroundColor: '#f59e0b',
+    backgroundColor: '#db2777',
     opacity: 0.05,
-    borderRadius: 100,
+    top: '40%',
+    right: -50,
+  },
+  gridOverlay: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    opacity: 0.03,
+  },
+  gridLine: {
+    position: 'absolute',
+    width: '100%',
+    height: 1,
+    backgroundColor: '#3b82f6',
+  },
+  gridLineVertical: {
+    position: 'absolute',
+    width: 1,
+    height: '100%',
+    backgroundColor: '#3b82f6',
   },
   content: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,
+    paddingHorizontal: 40,
   },
   logoContainer: {
-    backgroundColor: '#2563eb',
-    borderRadius: 24,
-    width: 96,
-    height: 96,
+    marginBottom: 10,
+  },
+  logo: {
+    width: 280,
+    height: 280,
+  },
+  taglineContainer: {
+    marginBottom: 80,
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 24,
-    shadowColor: '#2563eb',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 12,
   },
-  title: {
-    fontSize: 24,
-    color: '#94a3b8',
-    marginBottom: 4,
+  taglineBox: {
+    alignItems: 'center',
+    paddingHorizontal: 30,
+    paddingVertical: 20,
+    borderRadius: 12,
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.1)',
+  },
+  tagline: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#e2e8f0',
+    letterSpacing: 2,
+    textAlign: 'center',
+  },
+  divider: {
+    width: 60,
+    height: 2,
+    backgroundColor: '#3b82f6',
+    marginVertical: 10,
+    borderRadius: 1,
+  },
+  taglineSecondary: {
+    fontSize: 12,
     fontWeight: '500',
+    color: '#64748b',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
   },
-  appName: {
-    fontSize: 42,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    marginBottom: 48,
-    letterSpacing: 1,
+  loadingSection: {
+    position: 'absolute',
+    bottom: 100,
+    alignItems: 'center',
   },
-  loaderContainer: {
-    marginTop: 20,
+  dotsWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    marginBottom: 20,
+  },
+  dot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#3b82f6',
+    shadowColor: '#3b82f6',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 10,
+  },
+  loadingText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#94a3b8',
+    letterSpacing: 0.5,
+  },
+  decorativeElements: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    zIndex: 5,
+  },
+  floatingCircle: {
+    position: 'absolute',
+    borderRadius: 9999,
+    backgroundColor: '#3b82f6',
+  },
+  circle1: {
+    width: 6,
+    height: 6,
+    top: '18%',
+    left: '12%',
+    opacity: 0.4,
+  },
+  circle2: {
+    width: 8,
+    height: 8,
+    top: '28%',
+    right: '18%',
+    opacity: 0.3,
+  },
+  circle3: {
+    width: 5,
+    height: 5,
+    bottom: '22%',
+    left: '15%',
+    opacity: 0.5,
+  },
+  circle4: {
+    width: 7,
+    height: 7,
+    top: '70%',
+    right: '20%',
+    opacity: 0.35,
   },
 });
