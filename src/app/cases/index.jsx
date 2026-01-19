@@ -12,9 +12,11 @@ import * as Clipboard from 'expo-clipboard';
 import { casesService } from '../../lib/services/casesService';
 import { useAuth } from '../../lib/authContext';
 import { useDebounce } from '../../hooks/useDebounce';
+import { useTranslation } from 'react-i18next';
 
 const CaseCard = React.memo(({ item, onPress }) => {
   const router = useRouter();
+  const { t, i18n } = useTranslation();
   const statusColor = item.status?.color || '#64748b';
 
   const getPriorityColor = (priority) => {
@@ -28,11 +30,11 @@ const CaseCard = React.memo(({ item, onPress }) => {
   };
 
   const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
+    if (!dateString) return t('common.notAvailable');
     try {
       const date = new Date(dateString);
-      return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-    } catch { return 'N/A'; }
+      return date.toLocaleDateString(i18n.language === 'uz' ? 'uz-UZ' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    } catch { return t('common.notAvailable'); }
   };
 
   const formatCurrency = (amount) => {
@@ -42,23 +44,23 @@ const CaseCard = React.memo(({ item, onPress }) => {
 
   const handleCopyData = async () => {
     const caseData = `
-Case #${item.id}
+${t('common.id')} #${item.id}
 Priority: ${item.priority || 'N/A'}
-Debtor: ${item.debtorName || 'N/A'}
+${t('profile.labels.name')}: ${item.debtorName || 'N/A'}
 Account: ${item.accountNumber || 'N/A'}
-Phone: ${item.debtorPhone || 'N/A'}
-Balance: ${formatCurrency(item.currentBalance || item.totalAmountDue)}
-Days Overdue: ${item.daysPastDue || item.daysOverdue || '0'}
-Last Payment: ${formatDate(item.lastPaymentDate)}
-Stage: ${item.collectionStage ? item.collectionStage.replace(/_/g, ' ').toUpperCase() : 'N/A'}
-Status: ${item.status?.description || 'N/A'}
+${t('profile.labels.phoneNumber')}: ${item.debtorPhone || 'N/A'}
+${t('cases.balance')}: ${formatCurrency(item.currentBalance || item.totalAmountDue)}
+${t('cases.daysOverdue')}: ${item.daysPastDue || item.daysOverdue || '0'}
+${t('cases.lastPayment')}: ${formatDate(item.lastPaymentDate)}
+${t('cases.stage')}: ${item.collectionStage ? item.collectionStage.replace(/_/g, ' ').toUpperCase() : 'N/A'}
+${t('common.status')}: ${item.status?.description || 'N/A'}
     `.trim();
 
     try {
       await Clipboard.setStringAsync(caseData);
-      Alert.alert('Copied', 'Case data copied to clipboard');
+      Alert.alert(t('common.copied'), t('common.copiedMsg'));
     } catch (error) {
-      Alert.alert('Error', 'Failed to copy case data');
+      Alert.alert(t('common.error'), 'Failed to copy case data');
     }
   };
 
@@ -110,7 +112,7 @@ Status: ${item.status?.description || 'N/A'}
               fontWeight: '600',
               textTransform: 'uppercase'
             }}>
-              {item.priority || 'N/A'}
+              {item.priority ? t(`cases.priority.${item.priority.toLowerCase()}`, { defaultValue: item.priority }) : 'N/A'}
             </Text>
           </View>
         </View>
@@ -146,7 +148,7 @@ Status: ${item.status?.description || 'N/A'}
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <DollarSign color="#64748b" size={16} />
           <Text style={{ color: '#64748b', fontSize: 13, marginLeft: 6 }}>
-            Balance: 
+            {t('cases.balance')}: 
           </Text>
           <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '500', marginLeft: 4 }}>
             {formatCurrency(item.currentBalance || item.totalAmountDue)}
@@ -156,7 +158,7 @@ Status: ${item.status?.description || 'N/A'}
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <AlertCircle color="#64748b" size={16} />
           <Text style={{ color: '#64748b', fontSize: 13, marginLeft: 6 }}>
-            Days Overdue: 
+            {t('cases.daysOverdue')}: 
           </Text>
           <Text style={{ color: '#ef4444', fontSize: 13, fontWeight: '600', marginLeft: 4 }}>
             {item.daysPastDue || item.daysOverdue || '0'}
@@ -166,7 +168,7 @@ Status: ${item.status?.description || 'N/A'}
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <Calendar color="#64748b" size={16} />
           <Text style={{ color: '#64748b', fontSize: 13, marginLeft: 6 }}>
-            Last Payment: 
+            {t('cases.lastPayment')}: 
           </Text>
           <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '500', marginLeft: 4 }}>
             {formatDate(item.lastPaymentDate)}
@@ -185,7 +187,7 @@ Status: ${item.status?.description || 'N/A'}
         {item.collectionStage && (
           <View style={{ flex: 1 }}>
             <Text style={{ color: '#64748b', fontSize: 12 }}>
-              Stage: <Text style={{ color: '#3b82f6', fontWeight: '500' }}>
+              {t('cases.stage')}: <Text style={{ color: '#3b82f6', fontWeight: '500' }}>
                 {item.collectionStage.replace(/_/g, ' ').toUpperCase()}
               </Text>
             </Text>
@@ -238,6 +240,7 @@ export default function Cases() {
   const router = useRouter();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { t } = useTranslation();
   
   const [searchInput, setSearchInput] = useState('');
   const debouncedSearch = useDebounce(searchInput, 500);
@@ -286,11 +289,11 @@ export default function Cases() {
   if (error) {
     const errorMessage = error.message;
     if (errorMessage === 'UNAUTHORIZED') {
-      Alert.alert('Session Expired', 'Please login again', [{ text: 'OK', onPress: () => router.replace('/login') }]);
+      Alert.alert(t('common.sessionExpired'), t('common.sessionExpiredMsg'), [{ text: t('common.ok'), onPress: () => router.replace('/login') }]);
     } else if (errorMessage.includes('FORBIDDEN')) {
-      Alert.alert('Permission Denied', 'You do not have permission to view cases');
+      Alert.alert(t('common.permissionDenied'), t('cases.permissionDeniedMsg'));
     } else {
-      Alert.alert('Error', 'Failed to load cases');
+      Alert.alert(t('common.error'), t('cases.failedToLoad'));
     }
   }
   
@@ -318,10 +321,10 @@ export default function Cases() {
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
         <Briefcase color="#64748b" size={48} />
         <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: '600', marginTop: 16 }}>
-          No Cases Found
+          {t('cases.noCasesFound')}
         </Text>
         <Text style={{ color: '#64748b', fontSize: 14, marginTop: 8, textAlign: 'center' }}>
-          {debouncedSearch ? 'Try a different search term' : 'No cases available'}
+          {debouncedSearch ? t('cases.noCasesMsg') : t('cases.noCasesAvailable')}
         </Text>
       </View>
     );
@@ -352,7 +355,7 @@ export default function Cases() {
           </TouchableOpacity>
           
           <Text style={{ color: '#ffffff', fontSize: 28, fontWeight: 'bold' }}>
-            Cases
+            {t('cases.title')}
           </Text>
         </View>
 
@@ -374,7 +377,7 @@ export default function Cases() {
               paddingVertical: 12,
               marginLeft: 12,
             }}
-            placeholder="Search by name, account, or ID..."
+            placeholder={t('cases.searchPlaceholder')}
             placeholderTextColor="#64748b"
             value={searchInput}
             onChangeText={setSearchInput}

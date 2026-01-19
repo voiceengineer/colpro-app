@@ -6,6 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import { 
   MapPin, Bell, Search, FileText, ClipboardList, Zap, TrendingUp, CheckCircle, Clock, XCircle
 } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../lib/authContext';
 import { casesService } from '../../lib/services/casesService';
 import { tasksService } from '../../lib/services/tasksService';
@@ -14,6 +15,7 @@ export default function Home() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
+  const { t } = useTranslation();
   
   const [casesCount, setCasesCount] = useState(0);
   const [tasksCount, setTasksCount] = useState(0);
@@ -36,9 +38,9 @@ export default function Home() {
     } catch (error) {
       if (error.message === 'UNAUTHORIZED' || error.message.includes('401')) {
         Alert.alert(
-          'Session Expired', 
-          'Your session has expired. Please login again.',
-          [{ text: 'OK', onPress: () => router.replace('/login') }]
+          t('common.sessionExpired'), 
+          t('common.sessionExpiredMsg'),
+          [{ text: t('common.ok'), onPress: () => router.replace('/login') }]
         );
         return;
       }
@@ -72,9 +74,9 @@ export default function Home() {
     } catch (error) {
       if (error.message === 'UNAUTHORIZED' || error.message.includes('401')) {
         Alert.alert(
-          'Session Expired', 
-          'Your session has expired. Please login again.',
-          [{ text: 'OK', onPress: () => router.replace('/login') }]
+          t('common.sessionExpired'), 
+          t('common.sessionExpiredMsg'),
+          [{ text: t('common.ok'), onPress: () => router.replace('/login') }]
         );
         return;
       }
@@ -90,37 +92,37 @@ export default function Home() {
         return {
           mainValue: '0',
           count: casesCount,
-          label: 'Total Amount',
+          label: t('home.totalAmount'),
           color: '#3b82f6',
           loading: casesLoading,
-          countLabel: 'cases'
+          countLabel: t('home.cases')
         };
       case 'tasks':
         return {
           mainValue: '0',
           count: tasksCount,
-          label: 'Total Tasks',
+          label: t('home.totalTasks'),
           color: '#8b5cf6',
           loading: tasksLoading,
-          countLabel: 'tasks'
+          countLabel: t('home.tasks')
         };
       case 'bonuses':
         return {
           mainValue: '0',
           count: 0,
-          label: 'Bonuses',
+          label: t('home.bonuses'),
           color: '#f59e0b',
           loading: false,
-          countLabel: 'bonuses'
+          countLabel: t('home.bonuses').toLowerCase()
         };
       default:
         return {
           mainValue: '0',
           count: casesCount,
-          label: 'Total Amount',
+          label: t('home.totalAmount'),
           color: '#3b82f6',
           loading: casesLoading,
-          countLabel: 'cases'
+          countLabel: t('home.cases')
         };
     }
   };
@@ -229,7 +231,7 @@ export default function Home() {
               <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
                 <MapPin color="#64748b" size={12} />
                 <Text style={{ color: '#64748b', fontSize: 11, marginLeft: 4 }}>
-                  {user?.employeeAddress || "Not Available"}
+                  {user?.employeeAddress || t('common.notAvailable')}
                 </Text>
               </View>
             </View>
@@ -345,7 +347,7 @@ export default function Home() {
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <CategoryButton 
               icon={FileText} 
-              label="Cases" 
+              label={t('tabs.cases')}
               color="#3b82f6" 
               isActive={activeView === 'cases'}
               onPress={() => {
@@ -369,7 +371,7 @@ export default function Home() {
             />
             <CategoryButton 
               icon={Zap} 
-              label="Bonuses" 
+              label={t('home.bonuses')}
               color="#f59e0b"
               isActive={activeView === 'bonuses'}
               onPress={() => setActiveView('bonuses')}
@@ -389,7 +391,7 @@ export default function Home() {
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
             <TrendingUp color="#10b981" size={18} />
             <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '600', marginLeft: 8 }}>
-              Bypass Statistics
+              {t('home.bypassStatistics')}
             </Text>
           </View>
 
@@ -397,17 +399,17 @@ export default function Home() {
             <View style={{ flex: 1, alignItems: 'center', backgroundColor: '#1e293b', borderRadius: 12, paddingVertical: 12 }}>
               <CheckCircle color="#10b981" size={20} />
               <Text style={{ color: '#ffffff', fontSize: 20, fontWeight: 'bold', marginTop: 6 }}>0</Text>
-              <Text style={{ color: '#94a3b8', fontSize: 10, fontWeight: '600' }}>ACCEPTED</Text>
+              <Text style={{ color: '#94a3b8', fontSize: 10, fontWeight: '600' }}>{t('home.accepted')}</Text>
             </View>
             <View style={{ flex: 1, alignItems: 'center', backgroundColor: '#1e293b', borderRadius: 12, paddingVertical: 12 }}>
               <Clock color="#f59e0b" size={20} />
               <Text style={{ color: '#ffffff', fontSize: 20, fontWeight: 'bold', marginTop: 6 }}>0</Text>
-              <Text style={{ color: '#94a3b8', fontSize: 10, fontWeight: '600' }}>PENDING</Text>
+              <Text style={{ color: '#94a3b8', fontSize: 10, fontWeight: '600' }}>{t('home.pending')}</Text>
             </View>
             <View style={{ flex: 1, alignItems: 'center', backgroundColor: '#1e293b', borderRadius: 12, paddingVertical: 12 }}>
               <XCircle color="#ef4444" size={20} />
               <Text style={{ color: '#ffffff', fontSize: 20, fontWeight: 'bold', marginTop: 6 }}>0</Text>
-              <Text style={{ color: '#94a3b8', fontSize: 10, fontWeight: '600' }}>REJECTED</Text>
+              <Text style={{ color: '#94a3b8', fontSize: 10, fontWeight: '600' }}>{t('home.rejected')}</Text>
             </View>
           </View>
         </View>
@@ -424,7 +426,7 @@ export default function Home() {
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
             <FileText color="#3b82f6" size={18} />
             <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '600', marginLeft: 8 }}>
-              Sent Checks
+              {t('home.sentChecks')}
             </Text>
           </View>
 
@@ -432,17 +434,17 @@ export default function Home() {
             <View style={{ flex: 1, alignItems: 'center', backgroundColor: '#1e293b', borderRadius: 12, paddingVertical: 12 }}>
               <CheckCircle color="#10b981" size={20} />
               <Text style={{ color: '#ffffff', fontSize: 20, fontWeight: 'bold', marginTop: 6 }}>0</Text>
-              <Text style={{ color: '#94a3b8', fontSize: 10, fontWeight: '600' }}>ACCEPTED</Text>
+              <Text style={{ color: '#94a3b8', fontSize: 10, fontWeight: '600' }}>{t('home.accepted')}</Text>
             </View>
             <View style={{ flex: 1, alignItems: 'center', backgroundColor: '#1e293b', borderRadius: 12, paddingVertical: 12 }}>
               <Clock color="#f59e0b" size={20} />
               <Text style={{ color: '#ffffff', fontSize: 20, fontWeight: 'bold', marginTop: 6 }}>0</Text>
-              <Text style={{ color: '#94a3b8', fontSize: 10, fontWeight: '600' }}>PENDING</Text>
+              <Text style={{ color: '#94a3b8', fontSize: 10, fontWeight: '600' }}>{t('home.pending')}</Text>
             </View>
             <View style={{ flex: 1, alignItems: 'center', backgroundColor: '#1e293b', borderRadius: 12, paddingVertical: 12 }}>
               <XCircle color="#ef4444" size={20} />
               <Text style={{ color: '#ffffff', fontSize: 20, fontWeight: 'bold', marginTop: 6 }}>0</Text>
-              <Text style={{ color: '#94a3b8', fontSize: 10, fontWeight: '600' }}>REJECTED</Text>
+              <Text style={{ color: '#94a3b8', fontSize: 10, fontWeight: '600' }}>{t('home.rejected')}</Text>
             </View>
           </View>
         </View>
@@ -459,7 +461,7 @@ export default function Home() {
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
             <FileText color="#8b5cf6" size={18} />
             <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '600', marginLeft: 8 }}>
-              Portfolio
+              {t('home.portfolio')}
             </Text>
           </View>
 
@@ -474,11 +476,11 @@ export default function Home() {
 
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
               <View>
-                <Text style={{ color: '#94a3b8', fontSize: 11, marginBottom: 4 }}>Balance</Text>
+                <Text style={{ color: '#94a3b8', fontSize: 11, marginBottom: 4 }}>{t('home.balance')}</Text>
                 <Text style={{ color: '#10b981', fontSize: 18, fontWeight: '700' }}>0 UZS</Text>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
-                <Text style={{ color: '#94a3b8', fontSize: 11, marginBottom: 4 }}>Total</Text>
+                <Text style={{ color: '#94a3b8', fontSize: 11, marginBottom: 4 }}>{t('home.total')}</Text>
                 <Text style={{ color: '#3b82f6', fontSize: 18, fontWeight: '700' }}>0 UZS</Text>
               </View>
             </View>

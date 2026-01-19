@@ -9,20 +9,22 @@ import { tasksService } from '../../lib/services/tasksService';
 import { TaskInfoTab, VisitTab, ProductsTab, DocumentsTab, PaymentsTab } from '../../components/tasks-page-comp/all-tabs';
 import { CompleteVisitModal, VisitRemarksModal, PaymentDetailsModal } from '../../components/tasks-page-comp/all-modals';
 import { formatCurrency, getStatusColor, getPriorityColor } from '../../utils/task-helper';
-
-const TABS = [
-  { id: 'info', label: 'Info', icon: User },
-  { id: 'products', label: 'Products', icon: Package },
-  { id: 'documents', label: 'Docs', icon: FileText },
-  { id: 'visit', label: 'Visit', icon: Navigation },
-  { id: 'payments', label: 'Payments', icon: CreditCard },
-];
+import { useTranslation } from 'react-i18next';
 
 export default function TaskDetailsPage() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id } = useLocalSearchParams();
+  const { t } = useTranslation();
   
+  const TABS = [
+    { id: 'info', label: t('taskDetails.tabs.info'), icon: User },
+    { id: 'products', label: t('taskDetails.tabs.products'), icon: Package },
+    { id: 'documents', label: t('taskDetails.tabs.docs'), icon: FileText },
+    { id: 'visit', label: t('taskDetails.tabs.visit'), icon: Navigation },
+    { id: 'payments', label: t('taskDetails.tabs.payments'), icon: CreditCard },
+  ];
+
   const [activeTab, setActiveTab] = useState('info');
   const [refreshing, setRefreshing] = useState(false);
   const [sensitiveDataVisible, setSensitiveDataVisible] = useState({ phone: false, address: false, pinfl: false });
@@ -85,9 +87,9 @@ export default function TaskDetailsPage() {
     return (
       <View style={{ flex: 1, backgroundColor: '#0f172a', justifyContent: 'center', alignItems: 'center' }}>
         <AlertCircle color="#ef4444" size={48} />
-        <Text style={{ color: '#ffffff', fontSize: 18, marginTop: 16 }}>Failed to load task</Text>
+        <Text style={{ color: '#ffffff', fontSize: 18, marginTop: 16 }}>{t('taskDetails.failedToLoad')}</Text>
         <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 24, paddingHorizontal: 24, paddingVertical: 12, backgroundColor: '#3b82f6', borderRadius: 8 }}>
-          <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600' }}>Go Back</Text>
+          <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600' }}>{t('common.goBack')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -97,7 +99,7 @@ export default function TaskDetailsPage() {
     return (
       <View style={{ flex: 1, backgroundColor: '#0f172a', justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color="#3b82f6" />
-        <Text style={{ color: '#64748b', fontSize: 16, marginTop: 16 }}>Loading task details...</Text>
+        <Text style={{ color: '#64748b', fontSize: 16, marginTop: 16 }}>{t('taskDetails.loading')}</Text>
       </View>
     );
   }
@@ -118,13 +120,13 @@ export default function TaskDetailsPage() {
               <ArrowLeft color="#ffffff" size={24} />
             </TouchableOpacity>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: '#ffffff', fontSize: 20, fontWeight: 'bold' }}>Task #{taskData?.id}</Text>
-              <Text style={{ color: '#64748b', fontSize: 13, marginTop: 2 }}>{taskData?.debtorName || 'N/A'}</Text>
+              <Text style={{ color: '#ffffff', fontSize: 20, fontWeight: 'bold' }}>{t('tasks.taskNumber')} {taskData?.id}</Text>
+              <Text style={{ color: '#64748b', fontSize: 13, marginTop: 2 }}>{taskData?.debtorName || t('common.notAvailable')}</Text>
             </View>
           </View>
           <View style={{ backgroundColor: `${getPriorityColor(taskData?.priority)}20`, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}>
             <Text style={{ color: getPriorityColor(taskData?.priority), fontSize: 12, fontWeight: '700', textTransform: 'uppercase' }}>
-              {taskData?.priority || 'N/A'}
+              {taskData?.priority ? t(`cases.priority.${taskData.priority.toLowerCase()}`, { defaultValue: taskData.priority }) : t('common.notAvailable')}
             </Text>
           </View>
         </View>
@@ -132,17 +134,17 @@ export default function TaskDetailsPage() {
         {/* Summary Cards */}
         <View style={{ flexDirection: 'row', marginTop: 16, gap: 12, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#334155' }}>
           <View style={{ flex: 1, backgroundColor: '#0f172a', padding: 12, borderRadius: 8 }}>
-            <Text style={{ color: '#64748b', fontSize: 11, fontWeight: '600' }}>EXPECTED</Text>
+            <Text style={{ color: '#64748b', fontSize: 11, fontWeight: '600' }}>{t('taskDetails.summary.expected')}</Text>
             <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: 'bold', marginTop: 4 }}>{formatCurrency(taskData?.expectedAmount)}</Text>
           </View>
           <View style={{ flex: 1, backgroundColor: '#0f172a', padding: 12, borderRadius: 8 }}>
-            <Text style={{ color: '#64748b', fontSize: 11, fontWeight: '600' }}>COLLECTED</Text>
+            <Text style={{ color: '#64748b', fontSize: 11, fontWeight: '600' }}>{t('taskDetails.summary.collected')}</Text>
             <Text style={{ color: '#10b981', fontSize: 16, fontWeight: 'bold', marginTop: 4 }}>{formatCurrency(taskData?.actualAmountCollected || 0)}</Text>
           </View>
           <View style={{ flex: 1, backgroundColor: '#0f172a', padding: 12, borderRadius: 8 }}>
-            <Text style={{ color: '#64748b', fontSize: 11, fontWeight: '600' }}>STATUS</Text>
+            <Text style={{ color: '#64748b', fontSize: 11, fontWeight: '600' }}>{t('taskDetails.summary.status')}</Text>
             <Text style={{ color: getStatusColor(taskData?.status), fontSize: 13, fontWeight: 'bold', marginTop: 4, textTransform: 'uppercase' }}>
-              {taskData?.status?.replace(/_/g, ' ') || 'N/A'}
+              {taskData?.status?.replace(/_/g, ' ') || t('common.notAvailable')}
             </Text>
           </View>
         </View>
@@ -153,12 +155,12 @@ export default function TaskDetailsPage() {
             {uploadingEvidence ? (
               <>
                 <ActivityIndicator color="#ffffff" size="small" />
-                <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '700' }}>Uploading...</Text>
+                <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '700' }}>{t('common.uploading')}</Text>
               </>
             ) : (
               <>
                 <Play color="#ffffff" size={18} strokeWidth={2.5} />
-                <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '700' }}>Start Visit</Text>
+                <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '700' }}>{t('taskDetails.actions.startVisit')}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -167,7 +169,7 @@ export default function TaskDetailsPage() {
         {showAddPaymentButton && (
           <TouchableOpacity onPress={handleOpenPaymentModal} style={{ backgroundColor: '#3b82f6', borderRadius: 10, paddingVertical: 12, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 12, gap: 8, borderWidth: 2, borderColor: '#60a5fa' }}>
             <CreditCard color="#ffffff" size={18} strokeWidth={2.5} />
-            <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '700' }}>Add Payment</Text>
+            <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '700' }}>{t('taskDetails.actions.addPayment')}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -188,19 +190,19 @@ export default function TaskDetailsPage() {
 
       {/* Tab Content */}
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 20 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#3b82f6" />}>
-        {activeTab === 'info' && <TaskInfoTab taskData={taskData} sensitiveDataVisible={sensitiveDataVisible} toggleSensitiveData={toggleSensitiveData} />}
-        {activeTab === 'visit' && <VisitTab taskData={taskData} />}
-        {activeTab === 'products' && <ProductsTab caseId={taskData?.caseId} />}
-        {activeTab === 'documents' && <DocumentsTab taskId={id} />}
-        {activeTab === 'payments' && <PaymentsTab payments={payments} onAddPayment={handleOpenPaymentModal} />}
+        {activeTab === 'info' && <TaskInfoTab taskData={taskData} sensitiveDataVisible={sensitiveDataVisible} toggleSensitiveData={toggleSensitiveData} t={t} />}
+        {activeTab === 'visit' && <VisitTab taskData={taskData} t={t} />}
+        {activeTab === 'products' && <ProductsTab caseId={taskData?.caseId} t={t} />}
+        {activeTab === 'documents' && <DocumentsTab taskId={id} t={t} />}
+        {activeTab === 'payments' && <PaymentsTab payments={payments} onAddPayment={handleOpenPaymentModal} t={t} />}
       </ScrollView>
 
       {/* Modals */}
-      <CompleteVisitModal visible={showCompleteModal} onClose={() => setShowCompleteModal(false)} visitForm={visitForm} setVisitForm={setVisitForm} completingVisit={completingVisit} setCompletingVisit={setCompletingVisit} taskId={id} onOpenPaymentModal={handleOpenPaymentModal} refetch={refetch} insets={insets} />
+      <CompleteVisitModal visible={showCompleteModal} onClose={() => setShowCompleteModal(false)} visitForm={visitForm} setVisitForm={setVisitForm} completingVisit={completingVisit} setCompletingVisit={setCompletingVisit} taskId={id} onOpenPaymentModal={handleOpenPaymentModal} refetch={refetch} insets={insets} t={t} />
       
-      <VisitRemarksModal visible={showVisitRemarksModal} onClose={() => { setShowVisitRemarksModal(false); setVisitPhotoRemarks(''); }} visitPhotoRemarks={visitPhotoRemarks} setVisitPhotoRemarks={setVisitPhotoRemarks} uploadingEvidence={uploadingEvidence} setUploadingEvidence={setUploadingEvidence} taskId={id} onSuccess={() => { setVisitForm({ status: 'completed', notes: '', actualAmountCollected: taskData?.expectedAmount?.toString() || '' }); setShowCompleteModal(true); }} insets={insets} />
+      <VisitRemarksModal visible={showVisitRemarksModal} onClose={() => { setShowVisitRemarksModal(false); setVisitPhotoRemarks(''); }} visitPhotoRemarks={visitPhotoRemarks} setVisitPhotoRemarks={setVisitPhotoRemarks} uploadingEvidence={uploadingEvidence} setUploadingEvidence={setUploadingEvidence} taskId={id} onSuccess={() => { setVisitForm({ status: 'completed', notes: '', actualAmountCollected: taskData?.expectedAmount?.toString() || '' }); setShowCompleteModal(true); }} insets={insets} t={t} />
       
-      <PaymentDetailsModal visible={showPaymentDetailsModal} onClose={() => setShowPaymentDetailsModal(false)} paymentDetails={paymentDetails} setPaymentDetails={setPaymentDetails} addingPayment={addingPayment} setAddingPayment={setAddingPayment} caseId={taskData?.caseId} onSuccess={async () => { await refetchPayments(); setActiveTab('payments'); }} insets={insets} />
+      <PaymentDetailsModal visible={showPaymentDetailsModal} onClose={() => setShowPaymentDetailsModal(false)} paymentDetails={paymentDetails} setPaymentDetails={setPaymentDetails} addingPayment={addingPayment} setAddingPayment={setAddingPayment} caseId={taskData?.caseId} onSuccess={async () => { await refetchPayments(); setActiveTab('payments'); }} insets={insets} t={t} />
     </View>
   );
 }

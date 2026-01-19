@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from '../lib/authContext';
+import '../lib/i18n'; // Initialize i18n
 
 SplashScreen.preventAutoHideAsync();
 

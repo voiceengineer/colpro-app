@@ -2,9 +2,11 @@ import { Tabs } from "expo-router";
 import { Home, Settings, User } from "lucide-react-native";
 import { Platform, View, Text } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTranslation } from 'react-i18next';
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
 
   return (
     <Tabs
@@ -49,7 +51,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Home",
+          title: t('tabs.home'),
           tabBarIcon: ({ color }) => <Home color={color} size={24} />,
         }}
       />
@@ -57,7 +59,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="settings"
         options={{
-          title: "Settings",
+          title: t('tabs.settings'),
           tabBarIcon: ({ color }) => <Settings color={color} size={24} />,
         }}
       />
@@ -65,7 +67,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: "Profile",
+          title: t('tabs.profile'),
           tabBarIcon: ({ color }) => <User color={color} size={24} />,
         }}
       />

@@ -10,7 +10,7 @@ import { StatusBar } from 'expo-status-bar';
 import { 
   ArrowLeft, User, Phone, MapPin, CreditCard, 
   Calendar, DollarSign, AlertCircle, FileText,
-  Package, Receipt, Mic, Copy, CheckCircle,Camera, Image as ImageIcon,
+  Package, Receipt, Mic, Copy, CheckCircle, Camera, Image as ImageIcon,
   Eye, EyeOff, Download,
 } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
@@ -21,22 +21,24 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Sharing from 'expo-sharing';
 import { casesService } from '../../lib/services/casesService';
 import { authService } from '../../lib/services/authService';
+import { useTranslation } from 'react-i18next';
 
 const { width } = Dimensions.get('window');
-
-const TABS = [
-  { id: 'info', label: 'Info', icon: User },
-  { id: 'products', label: 'Products', icon: Package },
-  { id: 'payments', label: 'Payments', icon: Receipt },
-  { id: 'documents', label: 'Docs', icon: FileText },
-  { id: 'recordings', label: 'Audio', icon: Mic },
-];
 
 export default function CaseDetailsPage() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id } = useLocalSearchParams();
+  const { t, i18n } = useTranslation();
   
+  const TABS = [
+    { id: 'info', label: t('caseDetails.tabs.info'), icon: User },
+    { id: 'products', label: t('caseDetails.tabs.products'), icon: Package },
+    { id: 'payments', label: t('caseDetails.tabs.payments'), icon: Receipt },
+    { id: 'documents', label: t('caseDetails.tabs.docs'), icon: FileText },
+    { id: 'recordings', label: t('caseDetails.tabs.audio'), icon: Mic },
+  ];
+
   const [activeTab, setActiveTab] = useState('info');
   const [refreshing, setRefreshing] = useState(false);
   const [sensitiveDataVisible, setSensitiveDataVisible] = useState({
@@ -68,14 +70,14 @@ export default function CaseDetailsPage() {
     return (
       <View style={{ flex: 1, backgroundColor: '#0f172a', justifyContent: 'center', alignItems: 'center' }}>
         <AlertCircle color="#ef4444" size={48} />
-        <Text style={{ color: '#ffffff', fontSize: 18, marginTop: 16 }}>Failed to load case</Text>
+        <Text style={{ color: '#ffffff', fontSize: 18, marginTop: 16 }}>{t('caseDetails.failedToLoad')}</Text>
         <TouchableOpacity
           onPress={() => router.back()}
           style={{ marginTop: 24, paddingHorizontal: 24, paddingVertical: 12, backgroundColor: '#3b82f6', borderRadius: 8 }}
           accessibilityLabel="Go back to cases list"
           accessibilityRole="button"
         >
-          <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600' }}>Go Back</Text>
+          <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600' }}>{t('common.goBack')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -85,7 +87,7 @@ export default function CaseDetailsPage() {
     return (
       <View style={{ flex: 1, backgroundColor: '#0f172a', justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color="#3b82f6" />
-        <Text style={{ color: '#64748b', fontSize: 16, marginTop: 16 }}>Loading case details...</Text>
+        <Text style={{ color: '#64748b', fontSize: 16, marginTop: 16 }}>{t('caseDetails.loading')}</Text>
       </View>
     );
   }
@@ -100,11 +102,11 @@ export default function CaseDetailsPage() {
   };
 
   const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
+    if (!dateString) return t('common.notAvailable');
     try {
       const date = new Date(dateString);
-      return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-    } catch { return 'N/A'; }
+      return date.toLocaleDateString(i18n.language === 'uz' ? 'uz-UZ' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    } catch { return t('common.notAvailable'); }
   };
 
   const getPriorityColor = (priority) => {
@@ -120,9 +122,9 @@ export default function CaseDetailsPage() {
   const copyToClipboard = async (text, label) => {
     try {
       await Clipboard.setStringAsync(text);
-      Alert.alert('Copied', `${label} copied to clipboard`);
+      Alert.alert(t('common.copied'), `${label} ${t('common.copiedMsg')}`);
     } catch (error) {
-      Alert.alert('Error', 'Failed to copy');
+      Alert.alert(t('common.error'), 'Failed to copy');
     }
   };
 
@@ -133,7 +135,7 @@ export default function CaseDetailsPage() {
       {/* Header */}
       <View style={{ 
         paddingTop: insets.top + 16, 
-        paddingHorizontal: 20,
+        paddingHorizontal: 20, 
         paddingBottom: 16,
         backgroundColor: '#1e293b',
         borderBottomWidth: 1,
@@ -155,7 +157,7 @@ export default function CaseDetailsPage() {
                 Case #{caseData?.id}
               </Text>
               <Text style={{ color: '#64748b', fontSize: 13, marginTop: 2 }}>
-                {account.fullName || 'N/A'}
+                {account.fullName || t('common.notAvailable')}
               </Text>
             </View>
           </View>
@@ -175,7 +177,7 @@ export default function CaseDetailsPage() {
               fontWeight: '700',
               textTransform: 'uppercase'
             }}>
-              {caseData?.priority || 'N/A'}
+              {caseData?.priority ? t(`cases.priority.${caseData.priority.toLowerCase()}`, { defaultValue: caseData.priority }) : 'N/A'}
             </Text>
           </View>
         </View>
@@ -190,7 +192,7 @@ export default function CaseDetailsPage() {
           borderTopColor: '#334155',
         }}>
           <View style={{ flex: 1, backgroundColor: '#0f172a', padding: 12, borderRadius: 8 }}>
-            <Text style={{ color: '#64748b', fontSize: 11, fontWeight: '600' }}>BALANCE</Text>
+            <Text style={{ color: '#64748b', fontSize: 11, fontWeight: '600' }}>{t('cases.balance').toUpperCase()}</Text>
             <Text 
               style={{ color: '#ffffff', fontSize: 16, fontWeight: 'bold', marginTop: 4 }}
               accessibilityLabel={`Balance: ${formatCurrency(caseData?.currentBalance)}`}
@@ -200,7 +202,7 @@ export default function CaseDetailsPage() {
           </View>
           
           <View style={{ flex: 1, backgroundColor: '#0f172a', padding: 12, borderRadius: 8 }}>
-            <Text style={{ color: '#64748b', fontSize: 11, fontWeight: '600' }}>OVERDUE</Text>
+            <Text style={{ color: '#64748b', fontSize: 11, fontWeight: '600' }}>{t('caseDetails.info.overdueDebt').toUpperCase()}</Text>
             <Text 
               style={{ color: '#ef4444', fontSize: 16, fontWeight: 'bold', marginTop: 4 }}
               accessibilityLabel={`Days overdue: ${caseData?.daysPastDue || '0'}`}
@@ -210,7 +212,7 @@ export default function CaseDetailsPage() {
           </View>
 
           <View style={{ flex: 1, backgroundColor: '#0f172a', padding: 12, borderRadius: 8 }}>
-            <Text style={{ color: '#64748b', fontSize: 11, fontWeight: '600' }}>STATUS</Text>
+            <Text style={{ color: '#64748b', fontSize: 11, fontWeight: '600' }}>{t('common.status').toUpperCase()}</Text>
             <Text 
               style={{ 
                 color: status.color || '#64748b', 
@@ -308,23 +310,24 @@ export default function CaseDetailsPage() {
             copyToClipboard={copyToClipboard}
             sensitiveDataVisible={sensitiveDataVisible}
             toggleSensitiveData={toggleSensitiveData}
+            t={t}
           />
         )}
         
         {activeTab === 'products' && (
-          <ProductsTab caseId={id} account={account} formatCurrency={formatCurrency} />
+          <ProductsTab caseId={id} account={account} formatCurrency={formatCurrency} t={t} />
         )}
         
         {activeTab === 'payments' && (
-          <PaymentsTab caseId={id} account={account} formatCurrency={formatCurrency} formatDate={formatDate} />
+          <PaymentsTab caseId={id} account={account} formatCurrency={formatCurrency} formatDate={formatDate} t={t} />
         )}
         
         {activeTab === 'documents' && (
-          <DocumentsTab caseId={id} />
+          <DocumentsTab caseId={id} t={t} />
         )}
         
         {activeTab === 'recordings' && (
-          <RecordingsTab caseId={id} formatDate={formatDate} />
+          <RecordingsTab caseId={id} formatDate={formatDate} t={t} />
         )}
       </ScrollView>
     </View>
@@ -341,7 +344,8 @@ function ClientInfoTab({
   formatDate, 
   copyToClipboard,
   sensitiveDataVisible,
-  toggleSensitiveData 
+  toggleSensitiveData,
+  t
 }) {
   const InfoCard = ({ icon: Icon, label, value, onCopy, sensitive, sensitiveKey }) => {
     const isSensitive = sensitive && !sensitiveDataVisible[sensitiveKey];
@@ -408,19 +412,19 @@ function ClientInfoTab({
   return (
     <View>
       <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>
-        Client Information
+        {t('caseDetails.info.clientInfo')}
       </Text>
 
       <InfoCard 
         icon={User} 
-        label="Full Name" 
+        label={t('caseDetails.info.fullName')} 
         value={account.fullName}
         onCopy={copyToClipboard}
       />
 
       <InfoCard 
         icon={CreditCard} 
-        label="Passport" 
+        label={t('caseDetails.info.passport')} 
         value={account.passportInfo}
         onCopy={copyToClipboard}
         sensitive={true}
@@ -429,7 +433,7 @@ function ClientInfoTab({
 
       <InfoCard 
         icon={CreditCard} 
-        label="PINFL" 
+        label={t('caseDetails.info.pinfl')} 
         value={account.pinfl}
         onCopy={copyToClipboard}
         sensitive={true}
@@ -438,7 +442,7 @@ function ClientInfoTab({
 
       <InfoCard 
         icon={Phone} 
-        label="Phone Number" 
+        label={t('caseDetails.info.phone')} 
         value={account.phone1}
         onCopy={copyToClipboard}
         sensitive={true}
@@ -448,7 +452,7 @@ function ClientInfoTab({
       {account.phone2 && (
         <InfoCard 
           icon={Phone} 
-          label="Phone Number 2" 
+          label={t('caseDetails.info.phone2')} 
           value={account.phone2}
           onCopy={copyToClipboard}
           sensitive={true}
@@ -458,37 +462,37 @@ function ClientInfoTab({
 
       <InfoCard 
         icon={MapPin} 
-        label="Address" 
+        label={t('caseDetails.info.address')} 
         value={account.address || account.region}
       />
 
       <InfoCard 
         icon={DollarSign} 
-        label="Total Amount Due" 
+        label={t('caseDetails.info.totalDue')} 
         value={formatCurrency(account.totalDebt || account.totalAmount)}
       />
 
       <InfoCard 
         icon={DollarSign} 
-        label="Overdue Debt" 
+        label={t('caseDetails.info.overdueDebt')} 
         value={formatCurrency(account.overdueDebt)}
       />
 
       <InfoCard 
         icon={Calendar} 
-        label="Days Overdue" 
+        label={t('caseDetails.info.daysOverdue')} 
         value={`${account.daysOverdue || caseData?.daysPastDue || '0'} days`}
       />
 
       <InfoCard 
         icon={Calendar} 
-        label="Last Payment Date" 
+        label={t('caseDetails.info.lastPaymentDate')} 
         value={formatDate(account.lastPaymentDate || caseData?.lastPaymentDate)}
       />
 
       <InfoCard 
         icon={DollarSign} 
-        label="Last Payment Amount" 
+        label={t('caseDetails.info.lastPaymentAmount')} 
         value={formatCurrency(account.lastPaymentAmount)}
       />
 
@@ -503,7 +507,7 @@ function ClientInfoTab({
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
           <CheckCircle color="#64748b" size={16} />
           <Text style={{ color: '#64748b', fontSize: 12, fontWeight: '600', marginLeft: 8 }}>
-            Status
+            {t('caseDetails.info.status')}
           </Text>
         </View>
         <View style={{
@@ -535,7 +539,7 @@ function ClientInfoTab({
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
             <FileText color="#64748b" size={16} />
             <Text style={{ color: '#64748b', fontSize: 12, fontWeight: '600', marginLeft: 8 }}>
-              Notes
+              {t('caseDetails.info.notes')}
             </Text>
           </View>
           <Text style={{ color: '#ffffff', fontSize: 14, lineHeight: 20 }}>
@@ -545,55 +549,55 @@ function ClientInfoTab({
       )}
 
       <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: 'bold', marginTop: 8, marginBottom: 16 }}>
-        Additional Information
+        {t('caseDetails.info.additionalInfo')}
       </Text>
 
       <InfoCard 
         icon={FileText} 
-        label="Contract Number" 
+        label={t('caseDetails.info.contractNumber')} 
         value={account.contractNumber}
       />
 
       <InfoCard 
         icon={FileText} 
-        label="Customer ID" 
+        label={t('caseDetails.info.customerId')} 
         value={account.customerId}
       />
 
       <InfoCard 
         icon={Calendar} 
-        label="Date of Birth" 
+        label={t('caseDetails.info.dob')} 
         value={formatDate(account.dateOfBirth)}
       />
 
       <InfoCard 
         icon={User} 
-        label="Age" 
+        label={t('caseDetails.info.age')} 
         value={account.age ? `${account.age} years` : 'N/A'}
       />
 
       <InfoCard 
         icon={MapPin} 
-        label="Region" 
+        label={t('caseDetails.info.region')} 
         value={account.region}
       />
 
       <InfoCard 
         icon={FileText} 
-        label="Source of Debt" 
+        label={t('caseDetails.info.sourceOfDebt')} 
         value={account.sourceOfDebt}
       />
 
       <InfoCard 
         icon={FileText} 
-        label="Collection Stage" 
+        label={t('caseDetails.info.collectionStage')} 
         value={caseData?.collectionStage?.replace(/_/g, ' ').toUpperCase()}
       />
 
       {agent?.name && (
         <InfoCard 
           icon={User} 
-          label="Assigned Agent" 
+          label={t('caseDetails.info.assignedAgent')} 
           value={agent.name}
         />
       )}
@@ -602,11 +606,11 @@ function ClientInfoTab({
 }
 
 // Products Tab Component
-function ProductsTab({ caseId, account, formatCurrency }) {
+function ProductsTab({ caseId, account, formatCurrency, t }) {
   return (
     <View>
       <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>
-        Products
+        {t('caseDetails.products.title')}
       </Text>
 
       <View style={{ 
@@ -626,21 +630,21 @@ function ProductsTab({ caseId, account, formatCurrency }) {
 
         <View style={{ gap: 8 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <Text style={{ color: '#64748b', fontSize: 14 }}>Contract Number:</Text>
+            <Text style={{ color: '#64748b', fontSize: 14 }}>{t('caseDetails.products.contractNumber')}:</Text>
             <Text style={{ color: '#ffffff', fontSize: 14, fontWeight: '500' }}>
               {account.contractNumber || 'N/A'}
             </Text>
           </View>
 
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <Text style={{ color: '#64748b', fontSize: 14 }}>Total Amount:</Text>
+            <Text style={{ color: '#64748b', fontSize: 14 }}>{t('caseDetails.products.totalAmount')}:</Text>
             <Text style={{ color: '#ffffff', fontSize: 14, fontWeight: '500' }}>
               {account.totalAmount ? formatCurrency(account.totalAmount) : 'N/A'}
             </Text>
           </View>
 
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <Text style={{ color: '#64748b', fontSize: 14 }}>Fees:</Text>
+            <Text style={{ color: '#64748b', fontSize: 14 }}>{t('caseDetails.products.fees')}:</Text>
             <Text style={{ color: '#ffffff', fontSize: 14, fontWeight: '500' }}>
               {account.fees ? formatCurrency(account.fees) : '0'}
             </Text>
@@ -651,7 +655,7 @@ function ProductsTab({ caseId, account, formatCurrency }) {
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
         <Package color="#64748b" size={48} />
         <Text style={{ color: '#64748b', fontSize: 14, marginTop: 16, textAlign: 'center' }}>
-          Detailed product information will be displayed here
+          {t('caseDetails.products.emptyMsg')}
         </Text>
       </View>
     </View>
@@ -659,7 +663,7 @@ function ProductsTab({ caseId, account, formatCurrency }) {
 }
 
 // Payments Tab Component
-function PaymentsTab({ caseId, account, formatCurrency, formatDate }) {
+function PaymentsTab({ caseId, account, formatCurrency, formatDate, t }) {
   const payments = [
     {
       id: 1,
@@ -674,16 +678,16 @@ function PaymentsTab({ caseId, account, formatCurrency, formatDate }) {
     return (
       <View>
         <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>
-          Payment History
+          {t('caseDetails.payments.title')}
         </Text>
         
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 60 }}>
           <Receipt color="#64748b" size={48} />
           <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600', marginTop: 16 }}>
-            No Payments
+            {t('caseDetails.payments.noPayments')}
           </Text>
           <Text style={{ color: '#64748b', fontSize: 14, marginTop: 8 }}>
-            No payment records found for this case
+            {t('caseDetails.payments.noPaymentsMsg')}
           </Text>
         </View>
       </View>
@@ -693,7 +697,7 @@ function PaymentsTab({ caseId, account, formatCurrency, formatDate }) {
   return (
     <View>
       <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>
-        Payment History ({payments.length})
+        {t('caseDetails.payments.title')} ({payments.length})
       </Text>
 
       {payments.map((payment) => (
@@ -726,14 +730,14 @@ function PaymentsTab({ caseId, account, formatCurrency, formatDate }) {
 
           <View style={{ gap: 6 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Text style={{ color: '#64748b', fontSize: 14 }}>Date:</Text>
+              <Text style={{ color: '#64748b', fontSize: 14 }}>{t('common.date')}:</Text>
               <Text style={{ color: '#ffffff', fontSize: 14 }}>
                 {formatDate(payment.date)}
               </Text>
             </View>
 
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Text style={{ color: '#64748b', fontSize: 14 }}>Method:</Text>
+              <Text style={{ color: '#64748b', fontSize: 14 }}>{t('caseDetails.payments.method')}:</Text>
               <Text style={{ color: '#ffffff', fontSize: 14 }}>
                 {payment.method}
               </Text>
@@ -746,7 +750,7 @@ function PaymentsTab({ caseId, account, formatCurrency, formatDate }) {
 }
 
 // Documents Tab Component - NOW INCLUDES ALL FILES (IMAGES + DOCUMENTS)
-function DocumentsTab({ caseId }) {
+function DocumentsTab({ caseId, t }) {
   const [documents, setDocuments] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [uploading, setUploading] = React.useState(false); // New State
@@ -772,7 +776,7 @@ function DocumentsTab({ caseId }) {
     try {
       const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
       if (!permissionResult.granted) { 
-        Alert.alert("Permission Required", "Camera access is needed to take photos."); 
+        Alert.alert(t('common.permissionRequired'), "Camera access is needed to take photos."); 
         return; 
       }
 
@@ -787,7 +791,7 @@ function DocumentsTab({ caseId }) {
       }
     } catch (error) { 
       console.error("Camera Error:", error);
-      Alert.alert("Error", "Could not open camera."); 
+      Alert.alert(t('common.error'), "Could not open camera."); 
     }
   };
 
@@ -798,7 +802,7 @@ function DocumentsTab({ caseId }) {
       // We pass the URI directly to the service
       await casesService.uploadCaseDocument(caseId, photo.uri);
 
-      Alert.alert("Success", "Document uploaded successfully!");
+      Alert.alert(t('common.success'), "Document uploaded successfully!");
       
       // Refresh list
       setLoading(true);
@@ -850,16 +854,16 @@ const handleDownload = async (doc) => {
         if (!granted) {
           if (canAskAgain) {
             Alert.alert(
-              "Permission Required",
+              t('common.permissionRequired'),
               "Gallery permission is needed to save images. Please allow it when prompted.",
               [{ text: "OK" }]
             );
           } else {
             Alert.alert(
-              "Permission Denied",
+              t('common.permissionDenied'),
               "Gallery permission was denied. Please enable it in your device settings to save images.",
               [
-                { text: "Cancel", style: "cancel" },
+                { text: t('common.cancel'), style: "cancel" },
                 { text: "Open Settings", onPress: () => Linking.openSettings() }
               ]
             );
@@ -869,7 +873,7 @@ const handleDownload = async (doc) => {
         }
       } catch (permError) {
         console.error('Permission error:', permError);
-        Alert.alert("Permission Error", "Could not request gallery permission.");
+        Alert.alert(t('common.permissionDenied'), "Could not request gallery permission.");
         setDownloadingIds(prev => ({ ...prev, [doc.id]: false }));
         return;
       }
@@ -894,7 +898,7 @@ const handleDownload = async (doc) => {
       // Image: Save to gallery directly
       try {
         await MediaLibrary.saveToLibraryAsync(result.uri);
-        Alert.alert("Success!", "Image saved to your Gallery.");
+        Alert.alert(t('common.success'), "Image saved to your Gallery.");
       } catch (saveError) {
         console.error('Save to gallery error:', saveError);
         Alert.alert("Save Failed", "Could not save image to gallery. Please check app permissions in settings.");
@@ -906,7 +910,7 @@ const handleDownload = async (doc) => {
         `Save "${fileName}" to your device?`,
         [
           {
-            text: "Cancel",
+            text: t('common.cancel'),
             style: "cancel",
             onPress: () => {
               setDownloadingIds(prev => ({ ...prev, [doc.id]: false }));
@@ -925,13 +929,13 @@ const handleDownload = async (doc) => {
                     doc.mimeType || 'application/octet-stream'
                   );
                   await FileSystem.writeAsStringAsync(newFileUri, base64Data, { encoding: FileSystem.EncodingType.Base64 });
-                  Alert.alert("Success!", "File saved successfully.");
+                  Alert.alert(t('common.success'), "File saved successfully.");
                 } else {
                   Alert.alert("Cancelled", "File save cancelled.");
                 }
               } catch (e) {
                 console.error('SAF error:', e);
-                Alert.alert("Error", "Could not save file. Please try again.");
+                Alert.alert(t('common.error'), "Could not save file. Please try again.");
               }
               setDownloadingIds(prev => ({ ...prev, [doc.id]: false }));
             }
@@ -1046,18 +1050,18 @@ const handleDownload = async (doc) => {
         {uploading ? (
           <>
             <ActivityIndicator color="#ffffff" size="small" />
-            <Text style={{ color: '#ffffff', fontSize: 17, fontWeight: '700' }}>Uploading...</Text>
+            <Text style={{ color: '#ffffff', fontSize: 17, fontWeight: '700' }}>{t('common.uploading')}</Text>
           </>
         ) : (
           <>
             <Camera color="#ffffff" size={28} strokeWidth={2.5} />
-            <Text style={{ color: '#ffffff', fontSize: 17, fontWeight: '700' }}>Add Document</Text>
+            <Text style={{ color: '#ffffff', fontSize: 17, fontWeight: '700' }}>{t('caseDetails.docs.addDocument')}</Text>
           </>
         )}
       </TouchableOpacity>
 
       <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>
-        Documents & Files ({documents.length})
+        {t('caseDetails.docs.title')} ({documents.length})
       </Text>
 
       {/* Empty State */}
@@ -1065,80 +1069,12 @@ const handleDownload = async (doc) => {
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
           <FileText color="#64748b" size={48} />
           <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600', marginTop: 16 }}>
-            No Documents
+            {t('caseDetails.docs.noDocs')}
           </Text>
         </View>
       )}
 
       {/* Documents List */}
-      {documents.map((doc, index) => {
-        const docName = doc.originalName || doc.fileName || `Document ${index + 1}`;
-        return (
-          <View
-            key={doc.id ? `doc-${doc.id}-${index}` : `doc-index-${index}`}
-            style={{ 
-              backgroundColor: '#1e293b', 
-              borderRadius: 10, 
-              padding: 16,
-              marginBottom: 12,
-              borderWidth: 1,
-              borderColor: '#334155',
-            }}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Text style={{ fontSize: 32, marginRight: 12 }}>
-                {getFileIcon(docName)}
-              </Text>
-              
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '500' }}>
-                  {docName}
-                </Text>
-                <Text style={{ color: '#64748b', fontSize: 12, marginTop: 4 }}>
-                  {getFileType(docName)}
-                  {doc.fileSize && ` • ${formatFileSize(doc.fileSize)}`}
-                </Text>
-              </View>
-
-              <TouchableOpacity
-                onPress={() => handleDownload(doc)}
-                disabled={downloadingIds[doc.id]}
-                style={{
-                  backgroundColor: downloadingIds[doc.id] ? '#1e293b' : '#3b82f6',
-                  paddingHorizontal: 16,
-                  paddingVertical: 10,
-                  borderRadius: 8,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 6,
-                  marginLeft: 12,
-                }}
-              >
-                {downloadingIds[doc.id] ? (
-                  <ActivityIndicator size="small" color="#3b82f6" />
-                ) : (
-                  <>
-                    <Download color="#ffffff" size={16} />
-                    <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '600' }}>
-                      Download
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        );
-      })}
-    </View>
-  );
- 
-
-  return (
-    <View>
-      <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>
-        Documents & Files ({documents.length})
-      </Text>
-
       {documents.map((doc, index) => {
         const docName = doc.originalName || doc.fileName || `Document ${index + 1}`;
         return (
@@ -1191,7 +1127,7 @@ const handleDownload = async (doc) => {
                   <>
                     <Download color="#ffffff" size={16} />
                     <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '600' }}>
-                      Download
+                      {t('common.download')}
                     </Text>
                   </>
                 )}
@@ -1205,7 +1141,7 @@ const handleDownload = async (doc) => {
 }
 
 // Recordings Tab Component
-function RecordingsTab({ caseId, formatDate }) {
+function RecordingsTab({ caseId, formatDate, t }) {
   const [recordings, setRecordings] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
 
@@ -1236,16 +1172,16 @@ function RecordingsTab({ caseId, formatDate }) {
     return (
       <View>
         <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>
-          Call Recordings
+          {t('caseDetails.audio.title')}
         </Text>
         
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 60 }}>
           <Mic color="#64748b" size={48} />
           <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600', marginTop: 16 }}>
-            No Recordings
+            {t('caseDetails.audio.noRecordings')}
           </Text>
           <Text style={{ color: '#64748b', fontSize: 14, marginTop: 8 }}>
-            No call recordings available for this case
+            {t('caseDetails.audio.noRecordingsMsg')}
           </Text>
         </View>
       </View>
@@ -1255,7 +1191,7 @@ function RecordingsTab({ caseId, formatDate }) {
   return (
     <View>
       <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>
-        Call Recordings ({recordings.length})
+        {t('caseDetails.audio.title')} ({recordings.length})
       </Text>
 
       {recordings.map((recording, index) => (
@@ -1292,7 +1228,7 @@ function RecordingsTab({ caseId, formatDate }) {
 
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <Text style={{ color: '#64748b', fontSize: 13 }}>
-              Duration: {recording.duration || '00:00'}
+              {t('caseDetails.audio.duration')}: {recording.duration || '00:00'}
             </Text>
             <View style={{
               backgroundColor: '#3b82f6',
@@ -1301,7 +1237,7 @@ function RecordingsTab({ caseId, formatDate }) {
               borderRadius: 6,
             }}>
               <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '600' }}>
-                Play
+                {t('caseDetails.audio.play')}
               </Text>
             </View>
           </View>
