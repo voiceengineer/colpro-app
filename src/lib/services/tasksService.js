@@ -218,4 +218,46 @@ async uploadTaskAttachment(taskId, fileUri) {
 
     return await response.json();
   },
+
+  // Payment Methods
+  async getCasePayments(caseId) {
+    const token = await authService.getToken();
+    if (!token) throw new Error("UNAUTHORIZED");
+
+    const response = await fetch(`${API_URL}/cases/${caseId}/payments`, {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (response.status === 401) throw new Error("UNAUTHORIZED");
+    if (response.status === 403) throw new Error("FORBIDDEN");
+    if (!response.ok) throw new Error("Failed to fetch payments");
+
+    return await response.json();
+  },
+
+  async addCasePayment(caseId, paymentData) {
+    const token = await authService.getToken();
+    if (!token) throw new Error("UNAUTHORIZED");
+
+    const response = await fetch(`${API_URL}/cases/${caseId}/payments`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(paymentData),
+    });
+
+    if (response.status === 401) throw new Error("UNAUTHORIZED");
+    if (response.status === 403) throw new Error("FORBIDDEN");
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || "Failed to add payment");
+    }
+
+    return await response.json();
+  },
 };
