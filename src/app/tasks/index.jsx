@@ -15,9 +15,11 @@ import * as Clipboard from 'expo-clipboard';
 import { tasksService } from '../../lib/services/tasksService';
 import { useAuth } from '../../lib/authContext';
 import { useDebounce } from '../../hooks/useDebounce';
+import { useTranslation } from 'react-i18next';
 
 const TaskCard = React.memo(({ item, onPress }) => {
   const router = useRouter();
+  const { t, i18n } = useTranslation();
 
   const getStatusColor = (status) => {
     const s = status?.toLowerCase();
@@ -41,19 +43,19 @@ const TaskCard = React.memo(({ item, onPress }) => {
   };
 
   const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
+    if (!dateString) return t('common.notAvailable');
     try {
       const date = new Date(dateString);
-      return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-    } catch { return 'N/A'; }
+      return date.toLocaleDateString(i18n.language === 'uz' ? 'uz-UZ' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    } catch { return t('common.notAvailable'); }
   };
 
   const formatTime = (timeString) => {
-    if (!timeString) return 'N/A';
+    if (!timeString) return t('common.notAvailable');
     try {
       const [hours, minutes] = timeString.split(':');
       return `${hours}:${minutes}`;
-    } catch { return 'N/A'; }
+    } catch { return t('common.notAvailable'); }
   };
 
   const formatCurrency = (amount) => {
@@ -63,24 +65,24 @@ const TaskCard = React.memo(({ item, onPress }) => {
 
   const handleCopyData = async () => {
     const taskData = `
-Task #${item.id}
+${t('tasks.taskNumber')} ${item.id}
 Priority: ${item.priority || 'N/A'}
-Status: ${item.status || 'N/A'}
-Debtor: ${item.debtorName || 'N/A'}
-Phone: ${item.debtorPhone || 'N/A'}
-Address: ${item.debtorAddress || 'N/A'}
-Scheduled Date: ${formatDate(item.scheduledDate)}
-Scheduled Time: ${formatTime(item.scheduledTime)}
-Expected Amount: ${formatCurrency(item.expectedAmount)}
-Visit Type: ${item.visitType || 'N/A'}
-Assigned Agent: ${item.assignedAgent || 'N/A'}
+${t('common.status')}: ${item.status || 'N/A'}
+${t('taskDetails.info.debtorName')}: ${item.debtorName || 'N/A'}
+${t('profile.labels.phoneNumber')}: ${item.debtorPhone || 'N/A'}
+${t('taskDetails.info.address')}: ${item.debtorAddress || 'N/A'}
+${t('taskDetails.info.scheduledDate')}: ${formatDate(item.scheduledDate)}
+${t('taskDetails.info.scheduledTime')}: ${formatTime(item.scheduledTime)}
+${t('tasks.expectedAmount')}: ${formatCurrency(item.expectedAmount)}
+${t('tasks.type')}: ${item.visitType || 'N/A'}
+${t('taskDetails.info.assignedAgent')}: ${item.assignedAgent || 'N/A'}
     `.trim();
 
     try {
       await Clipboard.setStringAsync(taskData);
-      Alert.alert('Copied', 'Task data copied to clipboard');
+      Alert.alert(t('common.copied'), t('tasks.copiedMsg'));
     } catch (error) {
-      Alert.alert('Error', 'Failed to copy task data');
+      Alert.alert(t('common.error'), t('tasks.failedToCopy'));
     }
   };
 
@@ -104,7 +106,7 @@ Assigned Agent: ${item.assignedAgent || 'N/A'}
         <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
           <ClipboardList color="#3b82f6" size={18} />
           <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600', marginLeft: 8 }}>
-            Task #{item.id}
+            {t('tasks.taskNumber')} {item.id}
           </Text>
         </View>
 
@@ -132,7 +134,7 @@ Assigned Agent: ${item.assignedAgent || 'N/A'}
               fontWeight: '600',
               textTransform: 'uppercase'
             }}>
-              {item.priority || 'N/A'}
+              {item.priority ? t(`cases.priority.${item.priority.toLowerCase()}`, { defaultValue: item.priority }) : 'N/A'}
             </Text>
           </View>
         </View>
@@ -171,7 +173,7 @@ Assigned Agent: ${item.assignedAgent || 'N/A'}
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <Calendar color="#64748b" size={16} />
           <Text style={{ color: '#64748b', fontSize: 13, marginLeft: 6 }}>
-            Scheduled: 
+            {t('tasks.scheduled')}: 
           </Text>
           <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '500', marginLeft: 4 }}>
             {formatDate(item.scheduledDate)} at {formatTime(item.scheduledTime)}
@@ -181,7 +183,7 @@ Assigned Agent: ${item.assignedAgent || 'N/A'}
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <DollarSign color="#64748b" size={16} />
           <Text style={{ color: '#64748b', fontSize: 13, marginLeft: 6 }}>
-            Expected Amount: 
+            {t('tasks.expectedAmount')}: 
           </Text>
           <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '500', marginLeft: 4 }}>
             {formatCurrency(item.expectedAmount)}
@@ -192,7 +194,7 @@ Assigned Agent: ${item.assignedAgent || 'N/A'}
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <Clock color="#64748b" size={16} />
             <Text style={{ color: '#64748b', fontSize: 13, marginLeft: 6 }}>
-              Duration: 
+              {t('tasks.duration')}: 
             </Text>
             <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '500', marginLeft: 4 }}>
               {item.estimatedDuration} mins
@@ -212,7 +214,7 @@ Assigned Agent: ${item.assignedAgent || 'N/A'}
         {item.visitType && (
           <View style={{ flex: 1 }}>
             <Text style={{ color: '#64748b', fontSize: 12 }}>
-              Type: <Text style={{ color: '#3b82f6', fontWeight: '500', textTransform: 'capitalize' }}>
+              {t('tasks.type')}: <Text style={{ color: '#3b82f6', fontWeight: '500', textTransform: 'capitalize' }}>
                 {item.visitType}
               </Text>
             </Text>
@@ -266,6 +268,7 @@ export default function Tasks() {
   const router = useRouter();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { t } = useTranslation();
   
   const [searchInput, setSearchInput] = useState('');
   const debouncedSearch = useDebounce(searchInput, 500);
@@ -322,11 +325,11 @@ export default function Tasks() {
   if (error) {
     const errorMessage = error.message;
     if (errorMessage === 'UNAUTHORIZED') {
-      Alert.alert('Session Expired', 'Please login again', [{ text: 'OK', onPress: () => router.replace('/login') }]);
+      Alert.alert(t('common.sessionExpired'), t('common.sessionExpiredMsg'), [{ text: t('common.ok'), onPress: () => router.replace('/login') }]);
     } else if (errorMessage.includes('FORBIDDEN')) {
-      Alert.alert('Permission Denied', 'You do not have permission to view tasks');
+      Alert.alert(t('common.permissionDenied'), t('cases.permissionDeniedMsg'));
     } else {
-      Alert.alert('Error', 'Failed to load tasks');
+      Alert.alert(t('common.error'), t('tasks.failedToLoad'));
     }
   }
   
@@ -354,10 +357,10 @@ export default function Tasks() {
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
         <ClipboardList color="#64748b" size={48} />
         <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: '600', marginTop: 16 }}>
-          No Tasks Found
+          {t('tasks.noTasksFound')}
         </Text>
         <Text style={{ color: '#64748b', fontSize: 14, marginTop: 8, textAlign: 'center' }}>
-          {debouncedSearch ? 'Try a different search term' : 'No tasks available'}
+          {debouncedSearch ? t('tasks.noTasksMsg') : t('tasks.noTasksAvailable')}
         </Text>
       </View>
     );
@@ -388,7 +391,7 @@ export default function Tasks() {
           </TouchableOpacity>
           
           <Text style={{ color: '#ffffff', fontSize: 28, fontWeight: 'bold' }}>
-            Field Tasks
+            {t('tasks.title')}
           </Text>
         </View>
 
@@ -410,7 +413,7 @@ export default function Tasks() {
               paddingVertical: 12,
               marginLeft: 12,
             }}
-            placeholder="Search by name, phone, or address..."
+            placeholder={t('tasks.searchPlaceholder')}
             placeholderTextColor="#64748b"
             value={searchInput}
             onChangeText={setSearchInput}

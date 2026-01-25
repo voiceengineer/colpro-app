@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, Modal, StyleSheet } from 'react-native';
 import { Fingerprint, Sparkles, ScanFace } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 
 export default function BiometricEnrollmentModal({ 
   visible, 
@@ -9,6 +10,7 @@ export default function BiometricEnrollmentModal({
   onSkip 
 }) {
   const isFaceID = biometricType === 'Face ID';
+  const { t } = useTranslation();
 
   return (
     <Modal
@@ -37,24 +39,24 @@ export default function BiometricEnrollmentModal({
           </View>
           
           <Text style={styles.title}>
-            Enable {biometricType}?
+            {t('biometric.enableTitle', { type: biometricType })}
           </Text>
           
           <Text style={styles.description}>
-            Login instantly and securely with {biometricType}. Your biometric data stays on your device and is never shared.
+            {t('biometric.enableDesc', { type: biometricType })}
           </Text>
 
           <View style={styles.benefitsContainer}>
-            <BenefitItem text="Faster login experience" />
-            <BenefitItem text="Enhanced security" />
-            <BenefitItem text="No need to remember password" />
+            <BenefitItem text={t('biometric.benefit1')} />
+            <BenefitItem text={t('biometric.benefit2')} />
+            <BenefitItem text={t('biometric.benefit3')} />
           </View>
 
           <TouchableOpacity
             onPress={onEnable}
             style={styles.enableButton}
             activeOpacity={0.8}
-            accessibilityLabel={`Enable ${biometricType}`}
+            accessibilityLabel={t('biometric.enableButton', { type: biometricType })}
             accessibilityRole="button"
           >
             {isFaceID ? (
@@ -63,7 +65,7 @@ export default function BiometricEnrollmentModal({
               <Fingerprint color="#ffffff" size={20} strokeWidth={2.5} />
             )}
             <Text style={styles.enableButtonText}>
-              Enable {biometricType}
+              {t('biometric.enableButton', { type: biometricType })}
             </Text>
           </TouchableOpacity>
 
@@ -71,11 +73,11 @@ export default function BiometricEnrollmentModal({
             onPress={onSkip}
             style={styles.skipButton}
             activeOpacity={0.7}
-            accessibilityLabel="Skip biometric setup"
+            accessibilityLabel={t('biometric.skipButton')}
             accessibilityRole="button"
           >
             <Text style={styles.skipButtonText}>
-              Maybe Later
+              {t('biometric.skipButton')}
             </Text>
           </TouchableOpacity>
         </View>

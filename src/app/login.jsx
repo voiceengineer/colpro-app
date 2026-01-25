@@ -12,10 +12,12 @@ import {
   User, X, CheckCircle, Fingerprint, ScanFace, ArrowLeft
 } from 'lucide-react-native';
 import { useAuth } from '../lib/authContext';
+import { useTranslation } from 'react-i18next';
 
 export default function Login() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { t } = useTranslation();
   const { 
     login, 
     loginWithBiometric, 
@@ -65,10 +67,10 @@ export default function Login() {
     setLoading(true);
     try {
       await loginWithBiometric();
-      showToast('Login successful', 'success');
+      showToast(t('login.success'), 'success');
       setTimeout(() => router.replace('/(tabs)'), 1000);
     } catch (error) {
-      showToast(error?.message || 'Authentication failed');
+      showToast(error?.message || t('login.failed'));
     } finally {
       setLoading(false);
     }
@@ -76,11 +78,11 @@ export default function Login() {
 
   const handleLogin = async () => {
     if (!username.trim()) { 
-      showToast('Please enter your username'); 
+      showToast(t('login.emptyUsername')); 
       return; 
     }
     if (!password) { 
-      showToast('Please enter your password'); 
+      showToast(t('login.emptyPassword')); 
       return; 
     }
 
@@ -93,29 +95,29 @@ export default function Login() {
       if (shouldShowBiometricPrompt) {
         setLoading(false);
         Alert.alert(
-          `Enable ${biometricType}?`,
-          `Login faster and securely with ${biometricType} next time.`,
+          t('login.enableBiometric', { type: biometricType }),
+          t('login.enableBiometricMsg', { type: biometricType }),
           [
             {
-              text: 'Skip',
+              text: t('login.skip'),
               onPress: () => {
-                showToast('Login successful', 'success');
+                showToast(t('login.success'), 'success');
                 setTimeout(() => router.replace('/(tabs)'), 500);
               },
               style: 'cancel'
             },
             {
-              text: `Enable ${biometricType}`,
+              text: t('login.enable', { type: biometricType }),
               onPress: async () => {
                 try {
                   const success = await enableBiometricLogin(username, password);
                   if (success) {
-                    showToast(`${biometricType} enabled successfully`, 'success');
+                    showToast(t('login.biometricEnabled', { type: biometricType }), 'success');
                   } else {
                     showToast('Failed to enable biometric', 'error');
                   }
                 } catch (error) {
-                  showToast('Error enabling biometric', 'error');
+                  showToast(t('login.biometricError'), 'error');
                 }
                 setTimeout(() => router.replace('/(tabs)'), 1000);
               }
@@ -124,12 +126,12 @@ export default function Login() {
           { cancelable: false }
         );
       } else {
-        showToast('Login successful', 'success');
+        showToast(t('login.success'), 'success');
         setLoading(false);
         setTimeout(() => router.replace('/(tabs)'), 1000);
       }
     } catch (error) {
-      showToast(error?.message || 'Login failed');
+      showToast(error?.message || t('login.failed'));
       setLoading(false);
     }
   };
@@ -177,8 +179,8 @@ export default function Login() {
             <View style={styles.landingLogoContainer}>
               <Lock color="#ffffff" size={48} strokeWidth={2} />
             </View>
-            <Text style={styles.landingTitle}>Coll Pro</Text>
-            <Text style={styles.landingSubtitle}>Secure Field Agent Portal</Text>
+            <Text style={styles.landingTitle}>{t('login.appTitle')}</Text>
+            <Text style={styles.landingSubtitle}>{t('login.appSubtitle')}</Text>
           </View>
 
           <View style={styles.landingButtons}>
@@ -187,7 +189,7 @@ export default function Login() {
               style={styles.landingButtonPrimary}
               activeOpacity={0.8}
             >
-              <Text style={styles.landingButtonTextPrimary}>Login</Text>
+              <Text style={styles.landingButtonTextPrimary}>{t('login.loginButton')}</Text>
               <ArrowRight color="#ffffff" size={20} strokeWidth={2.5} />
             </TouchableOpacity>
 
@@ -196,11 +198,11 @@ export default function Login() {
               style={styles.landingButtonSecondary}
               activeOpacity={0.8}
             >
-              <Text style={styles.landingButtonTextSecondary}>Create Account</Text>
+              <Text style={styles.landingButtonTextSecondary}>{t('login.createAccount')}</Text>
             </TouchableOpacity>
           </View>
           
-          <Text style={styles.versionText}>Version 1.0.0</Text>
+          <Text style={styles.versionText}>{t('login.version', { version: '1.0.0' })}</Text>
         </Animated.View>
       </View>
     );
@@ -263,8 +265,8 @@ export default function Login() {
               <View style={styles.logoContainer}>
                 <Lock color="#ffffff" size={40} strokeWidth={2} />
               </View>
-              <Text style={styles.title}>Welcome Back</Text>
-              <Text style={styles.subtitle}>Sign in to continue</Text>
+              <Text style={styles.title}>{t('login.welcome')}</Text>
+              <Text style={styles.subtitle}>{t('login.signIn')}</Text>
             </View>
           )}
 
@@ -284,13 +286,13 @@ export default function Login() {
                   <Fingerprint color="#ffffff" size={24} strokeWidth={2.5} />
                 )}
                 <Text style={styles.biometricButtonText}>
-                  Login with {biometricType}
+                  {t('login.biometric', { type: biometricType })}
                 </Text>
               </TouchableOpacity>
 
               <View style={styles.divider}>
                 <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>OR</Text>
+                <Text style={styles.dividerText}>{t('login.or')}</Text>
                 <View style={styles.dividerLine} />
               </View>
             </>
@@ -298,12 +300,12 @@ export default function Login() {
 
           <View style={styles.formContainer}>
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Username or Phone</Text>
+              <Text style={styles.label}>{t('login.usernameLabel')}</Text>
               <View style={styles.inputContainer}>
                 <User color="#64748b" size={20} />
                 <TextInput
                   style={styles.input}
-                  placeholder="Username or +998..."
+                  placeholder={t('login.usernamePlaceholder')}
                   placeholderTextColor="#64748b"
                   value={username}
                   onChangeText={setUsername}
@@ -316,12 +318,12 @@ export default function Login() {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Password</Text>
+              <Text style={styles.label}>{t('login.passwordLabel')}</Text>
               <View style={styles.inputContainer}>
                 <Lock color="#64748b" size={20} />
                 <TextInput
                   style={styles.input}
-                  placeholder="Enter your password"
+                  placeholder={t('login.passwordPlaceholder')}
                   placeholderTextColor="#64748b"
                   value={password}
                   onChangeText={setPassword}
@@ -347,12 +349,12 @@ export default function Login() {
             </View>
 
             <TouchableOpacity 
-              onPress={() => showToast('Contact administrator to reset password')}
+              onPress={() => showToast(t('login.contactAdmin'))}
               style={styles.forgotPassword}
               disabled={loading}
               accessibilityLabel="Forgot password"
             >
-              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+              <Text style={styles.forgotPasswordText}>{t('login.forgotPassword')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -367,7 +369,7 @@ export default function Login() {
                 <ActivityIndicator color="#ffffff" />
               ) : (
                 <>
-                  <Text style={styles.loginButtonText}>Login</Text>
+                  <Text style={styles.loginButtonText}>{t('login.loginButton')}</Text>
                   <ArrowRight color="#ffffff" size={20} strokeWidth={2.5} />
                 </>
               )}

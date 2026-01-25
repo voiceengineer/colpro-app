@@ -3,13 +3,14 @@ import { useRouter } from 'expo-router';
 import { View, Text, StyleSheet, Animated, Image, Dimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useAuth } from '../lib/authContext';
-import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 
 const { width, height } = Dimensions.get('window');
 
 export default function Index() {
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuth();
+  const { t } = useTranslation();
   
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -181,9 +182,9 @@ export default function Index() {
           ]}
         >
           <View style={styles.taglineBox}>
-            <Text style={styles.tagline}>COLLECTION MANAGEMENT</Text>
+            <Text style={styles.tagline}>{t('landing.title')}</Text>
             <View style={styles.divider} />
-            <Text style={styles.taglineSecondary}>Professional Platform</Text>
+            <Text style={styles.taglineSecondary}>{t('landing.subtitle')}</Text>
           </View>
         </Animated.View>
 
@@ -232,7 +233,7 @@ export default function Index() {
               ]}
             />
           </View>
-          <Text style={styles.loadingText}>Preparing your workspace</Text>
+          <Text style={styles.loadingText}>{t('landing.loading')}</Text>
         </Animated.View>
       </View>
 

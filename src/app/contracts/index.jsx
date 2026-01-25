@@ -6,6 +6,7 @@ import {
   Alert, 
   ActivityIndicator,
   RefreshControl,
+  TouchableOpacity
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -18,14 +19,19 @@ import {
   HardDrive, 
   Clock,
   Users,
-  Layers
+  Layers,
+  ArrowLeft
 } from 'lucide-react-native';
 import { useAuth } from '../../lib/authContext';
 import { contractService } from '../../lib/services/contractService';
+import { useTranslation } from 'react-i18next';
+import { useRouter } from 'expo-router';
 
 export default function Contracts() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const { t, i18n } = useTranslation();
+  const router = useRouter();
   
   const [contracts, setContracts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -41,7 +47,7 @@ export default function Contracts() {
       const data = await contractService.getContractDocuments(user?.id);
       setContracts(data);
     } catch (error) {
-      Alert.alert('Error', error.message || 'Failed to load contracts');
+      Alert.alert(t('common.error'), error.message || t('contracts.failedToLoad'));
     } finally {
       setLoading(false);
     }
@@ -54,9 +60,9 @@ export default function Contracts() {
   };
 
   const formatDate = (dateString) => {
-    if (!dateString) return 'Not available';
+    if (!dateString) return t('common.notAvailable');
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
+    return date.toLocaleDateString(i18n.language === 'uz' ? 'uz-UZ' : 'en-US', { 
       month: 'short', 
       day: 'numeric',
       year: 'numeric',
@@ -182,19 +188,19 @@ export default function Contracts() {
         <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
           <StatBadge 
             icon={Hash}
-            label="ID"
+            label={t('common.id')}
             value={`#${item.id}`}
             color="#60a5fa"
           />
           <StatBadge 
             icon={Tag}
-            label="Type"
+            label={t('common.type')}
             value={item.fileExt?.toUpperCase()}
             color="#8b5cf6"
           />
           <StatBadge 
             icon={HardDrive}
-            label="Size"
+            label={t('common.size')}
             value={formatFileSize(item.fileSize)}
             color="#ec4899"
           />
@@ -204,14 +210,14 @@ export default function Contracts() {
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <StatBadge 
               icon={Layers}
-              label="Version"
+              label={t('common.version')}
               value={`v${item.currentVersion.versionNo}`}
               color="#10b981"
             />
             <View style={{ flex: 2 }}>
               <StatBadge 
                 icon={Clock}
-                label="Last Saved"
+                label={t('contracts.lastSaved')}
                 value={formatDate(item.currentVersion.savedAt)}
                 color="#f59e0b"
               />
@@ -242,7 +248,7 @@ export default function Contracts() {
               textTransform: 'uppercase',
               letterSpacing: 0.5,
             }}>
-              Assigned Agents ({item.fieldAgents.length})
+              {t('contracts.assignedAgents')} ({item.fieldAgents.length})
             </Text>
           </View>
 
@@ -343,7 +349,7 @@ export default function Contracts() {
                 textTransform: 'uppercase',
                 letterSpacing: 0.5,
               }}>
-                Created
+                {t('common.created')}
               </Text>
             </View>
             <Text style={{ 
@@ -365,7 +371,7 @@ export default function Contracts() {
                 textTransform: 'uppercase',
                 letterSpacing: 0.5,
               }}>
-                Updated
+                {t('common.updated')}
               </Text>
             </View>
             <Text style={{ 
@@ -406,7 +412,7 @@ export default function Contracts() {
         fontWeight: 'bold',
         marginBottom: 8,
       }}>
-        No Contracts Found
+        {t('contracts.noContracts')}
       </Text>
       <Text style={{ 
         color: '#94a3b8', 
@@ -415,7 +421,7 @@ export default function Contracts() {
         paddingHorizontal: 40,
         lineHeight: 20,
       }}>
-        You don't have any contract documents assigned to you yet
+        {t('contracts.noContractsMsg')}
       </Text>
     </View>
   );
@@ -435,7 +441,7 @@ export default function Contracts() {
           marginTop: 16,
           fontWeight: '600',
         }}>
-          Loading contracts...
+          {t('contracts.loading')}
         </Text>
       </View>
     );
@@ -486,14 +492,28 @@ export default function Contracts() {
         paddingBottom: 24,
         zIndex: 10,
       }}>
-        <Text style={{ 
-          color: '#f1f5f9', 
-          fontSize: 32, 
-          fontWeight: 'bold',
-          marginBottom: 6,
-        }}>
-          Contracts
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={{
+              padding: 8,
+              marginRight: 12,
+              borderRadius: 8,
+              backgroundColor: '#1e293b',
+              borderWidth: 1,
+              borderColor: '#334155',
+            }}
+          >
+            <ArrowLeft color="#ffffff" size={24} />
+          </TouchableOpacity>
+          <Text style={{ 
+            color: '#f1f5f9', 
+            fontSize: 32, 
+            fontWeight: 'bold',
+          }}>
+            {t('contracts.title')}
+          </Text>
+        </View>
         <View style={{
           flexDirection: 'row',
           alignItems: 'center',
@@ -510,7 +530,7 @@ export default function Contracts() {
             fontSize: 14,
             fontWeight: '600',
           }}>
-            {contracts.length} {contracts.length === 1 ? 'document' : 'documents'} available
+            {contracts.length} {contracts.length === 1 ? t('contracts.document') : t('contracts.documents')} {t('contracts.available')}
           </Text>
         </View>
       </View>

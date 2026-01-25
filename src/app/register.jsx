@@ -13,6 +13,7 @@ import {
   CreditCard, MapPin, Calendar, FileText, AtSign
 } from 'lucide-react-native';
 import { registrationService } from '../lib/services/registrationService';
+import { useTranslation } from 'react-i18next';
 
 const InputField = React.memo(({ 
   icon: Icon, 
@@ -106,6 +107,7 @@ const InputField = React.memo(({
 export default function Registration() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { t } = useTranslation();
   
   // Input refs for navigation
   const usernameRef = useRef(null);
@@ -211,7 +213,7 @@ export default function Registration() {
     try {
       await registrationService.registerFieldAgent(formData);
       
-      showToast('Registration successful! Please wait for approval.', 'success');
+      showToast(t('register.success'), 'success');
       
       // Redirect to login after delay
       setTimeout(() => {
@@ -219,7 +221,7 @@ export default function Registration() {
       }, 2000);
       
     } catch (error) {
-      showToast(error?.message || 'Registration failed');
+      showToast(error?.message || t('register.failed'));
     } finally {
       setLoading(false);
     }
@@ -271,7 +273,7 @@ export default function Registration() {
           borderWidth: 1.5,
           borderColor: '#334155',
         }}
-        accessibilityLabel="Go back"
+        accessibilityLabel={t('common.goBack')}
         accessibilityRole="button"
       >
         <ArrowLeft color="#f1f5f9" size={24} />
@@ -320,10 +322,10 @@ export default function Registration() {
           {!keyboardVisible && (
             <View style={{ marginBottom: 24 }}>
               <Text style={{ color: '#f1f5f9', fontSize: 32, fontWeight: 'bold', marginBottom: 8 }}>
-                Create Account
+                {t('register.title')}
               </Text>
               <Text style={{ color: '#94a3b8', fontSize: 16 }}>
-                Register as a Field Agent
+                {t('register.subtitle')}
               </Text>
             </View>
           )}
@@ -331,8 +333,8 @@ export default function Registration() {
           <InputField
             inputRef={usernameRef}
             icon={AtSign}
-            label="Username"
-            placeholder="Enter username (e.g., john_doe)"
+            label={t('register.username')}
+            placeholder={t('register.usernamePlaceholder')}
             value={formData.username}
             onChangeText={(text) => setFormData({ ...formData, username: text })}
             onSubmitEditing={() => nameRef.current?.focus()}
@@ -342,8 +344,8 @@ export default function Registration() {
           <InputField
             inputRef={nameRef}
             icon={User}
-            label="Full Name"
-            placeholder="Enter your full name"
+            label={t('register.fullName')}
+            placeholder={t('register.fullNamePlaceholder')}
             value={formData.name}
             onChangeText={(text) => setFormData({ ...formData, name: text })}
             onSubmitEditing={() => phoneRef.current?.focus()}
@@ -353,8 +355,8 @@ export default function Registration() {
           <InputField
             inputRef={phoneRef}
             icon={Phone}
-            label="Phone Number"
-            placeholder="998 (90) 123-45-67"
+            label={t('register.phoneNumber')}
+            placeholder={t('register.phoneNumberPlaceholder')}
             value={formData.phoneNumber}
             onChangeText={handlePhoneChange}
             keyboardType="phone-pad"
@@ -366,8 +368,8 @@ export default function Registration() {
           <InputField
             inputRef={passwordRef}
             icon={Lock}
-            label="Password"
-            placeholder="Minimum 8 characters"
+            label={t('register.password')}
+            placeholder={t('register.passwordPlaceholder')}
             value={formData.password}
             onChangeText={(text) => setFormData({ ...formData, password: text })}
             secureTextEntry={true}
@@ -381,8 +383,8 @@ export default function Registration() {
           <InputField
             inputRef={confirmPasswordRef}
             icon={Lock}
-            label="Confirm Password"
-            placeholder="Re-enter your password"
+            label={t('register.confirmPassword')}
+            placeholder={t('register.confirmPasswordPlaceholder')}
             value={formData.confirmPassword}
             onChangeText={(text) => setFormData({ ...formData, confirmPassword: text })}
             secureTextEntry={true}
@@ -396,8 +398,8 @@ export default function Registration() {
           <InputField
             inputRef={pinflRef}
             icon={FileText}
-            label="PINFL"
-            placeholder="14 digits"
+            label={t('register.pinfl')}
+            placeholder={t('register.pinflPlaceholder')}
             value={formData.pinfl}
             onChangeText={(text) => setFormData({ ...formData, pinfl: text.replace(/\D/g, '') })}
             keyboardType="numeric"
@@ -409,8 +411,8 @@ export default function Registration() {
           <InputField
             inputRef={passportRef}
             icon={CreditCard}
-            label="Passport Number"
-            placeholder="AB1234567"
+            label={t('register.passportNumber')}
+            placeholder={t('register.passportNumberPlaceholder')}
             value={formData.passportNumber}
             onChangeText={(text) => setFormData({ ...formData, passportNumber: text.toUpperCase() })}
             onSubmitEditing={() => setShowDatePicker(true)}
@@ -419,8 +421,8 @@ export default function Registration() {
 
           <InputField
             icon={Calendar}
-            label="Passport Issue Date"
-            placeholder="Select date"
+            label={t('register.issueDate')}
+            placeholder={t('register.issueDatePlaceholder')}
             value={formData.passportIssueDate}
             editable={false}
             onPress={() => !loading && setShowDatePicker(true)}
@@ -449,7 +451,7 @@ export default function Registration() {
               }}
             >
               <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600' }}>
-                Done
+                {t('register.done')}
               </Text>
             </TouchableOpacity>
           )}
@@ -457,8 +459,8 @@ export default function Registration() {
           <InputField
             inputRef={issuePlaceRef}
             icon={MapPin}
-            label="Place of Passport Issue"
-            placeholder="City name"
+            label={t('register.issuePlace')}
+            placeholder={t('register.issuePlacePlaceholder')}
             value={formData.passportIssuePlace}
             onChangeText={(text) => setFormData({ ...formData, passportIssuePlace: text })}
             onSubmitEditing={() => addressRef.current?.focus()}
@@ -468,8 +470,8 @@ export default function Registration() {
           <InputField
             inputRef={addressRef}
             icon={MapPin}
-            label="Employee's Address"
-            placeholder="Full address"
+            label={t('register.address')}
+            placeholder={t('register.addressPlaceholder')}
             value={formData.employeeAddress}
             onChangeText={(text) => setFormData({ ...formData, employeeAddress: text })}
             returnKeyType="done"
@@ -502,7 +504,7 @@ export default function Registration() {
               <ActivityIndicator color="#ffffff" size="small" />
             ) : (
               <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: 'bold' }}>
-                Create Account
+                {t('register.submit')}
               </Text>
             )}
           </TouchableOpacity>
@@ -510,11 +512,11 @@ export default function Registration() {
           {/* Login Link */}
           <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 20 }}>
             <Text style={{ color: '#94a3b8', fontSize: 15, fontWeight: '500' }}>
-              Already have an account?{' '}
+              {t('register.haveAccount')}{' '}
             </Text>
             <TouchableOpacity onPress={() => router.push('/login')} disabled={loading}>
               <Text style={{ color: '#3b82f6', fontSize: 15, fontWeight: '700' }}>
-                Sign In
+                {t('register.signIn')}
               </Text>
             </TouchableOpacity>
           </View>
