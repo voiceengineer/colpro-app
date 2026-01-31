@@ -5,10 +5,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import en from "./locales/en.json";
 import uz from "./locales/uz.json";
+import ru from "./locales/ru.json";
 
 const resources = {
   en: { translation: en },
   uz: { translation: uz },
+  ru: { translation: ru },
 };
 
 const LANGUAGE_DETECTOR = {
@@ -20,7 +22,12 @@ const LANGUAGE_DETECTOR = {
       if (err || !language) {
         const locales = getLocales();
         const deviceLanguage = locales[0]?.languageCode ?? "en";
-        callback(deviceLanguage === "uz" ? "uz" : "en");
+        const supportedLanguages = ["en", "uz", "ru"];
+        if (supportedLanguages.includes(deviceLanguage)) {
+          callback(deviceLanguage);
+        } else {
+          callback("en");
+        }
         return;
       }
       callback(language);

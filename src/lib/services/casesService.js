@@ -121,20 +121,19 @@ export const casesService = {
 
     return await response.json();
   },
-// REPLACE the old uploadCaseDocument with this one:
+
   async uploadCaseDocument(caseId, fileUri) {
     const token = await authService.getToken();
     if (!token) throw new Error("UNAUTHORIZED");
 
-    // Correct Endpoint for Cases
     const url = `${API_URL}/cases/${caseId}/documents`;
 
-    // 1. Prepare File Details
+    // Prepare File Details
     const uri = fileUri.startsWith('file://') ? fileUri : `file://${fileUri}`;
     const fileType = uri.endsWith('png') ? 'image/png' : 'image/jpeg';
     const fileName = `upload_${Date.now()}.${uri.endsWith('png') ? 'png' : 'jpg'}`;
 
-    // 2. Use XMLHttpRequest (Matches tasksService implementation)
+    // Use XMLHttpRequest
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open('POST', url);
@@ -142,8 +141,6 @@ export const casesService = {
       // Headers
       xhr.setRequestHeader('Authorization', `Bearer ${token}`);
       xhr.setRequestHeader('Accept', 'application/json');
-      // CRITICAL: Do NOT set Content-Type here. 
-      // The browser/native layer sets it automatically with the boundary.
 
       xhr.onload = () => {
         if (xhr.status >= 200 && xhr.status < 300) {
@@ -151,7 +148,7 @@ export const casesService = {
             const response = JSON.parse(xhr.response);
             resolve(response);
           } catch (e) {
-            resolve({}); // Handle empty success response
+            resolve({});
           }
         } else {
           console.error("XHR Failed:", xhr.responseText);
@@ -169,7 +166,7 @@ export const casesService = {
         reject(new Error("Network request failed"));
       };
 
-      // 3. Construct FormData
+      // Construct FormData
       const formData = new FormData();
       formData.append('file', {
         uri: uri,
@@ -177,17 +174,15 @@ export const casesService = {
         type: fileType,
       });
 
-      // Optional: Add description if your API supports it for cases
-      // formData.append('description', 'Uploaded via Mobile App');
-
-      // 4. Send
+      // Send
       xhr.send(formData);
     });
   },
-// In casesService.js
-getDocumentDownloadUrl(caseId, documentId) {
+
+  getDocumentDownloadUrl(caseId, documentId) {
     return `${API_URL}/cases/${caseId}/documents/${documentId}/download`;
-},
+  },
+
   async downloadCaseDocument(caseId, documentId) {
     const token = await authService.getToken();
     if (!token) throw new Error("UNAUTHORIZED");
@@ -206,7 +201,6 @@ getDocumentDownloadUrl(caseId, documentId) {
     return await response.blob();
   },
 
-  // NEW: Get document details with preview URL
   async getDocumentDetails(caseId, documentId) {
     const token = await authService.getToken();
     if (!token) throw new Error("UNAUTHORIZED");
@@ -240,7 +234,7 @@ getDocumentDownloadUrl(caseId, documentId) {
     return await response.json();
   },
 
-  // Payments endpoints (if available)
+  // Payments endpoints
   async getCasePayments(caseId) {
     const token = await authService.getToken();
     if (!token) throw new Error("UNAUTHORIZED");
@@ -259,7 +253,7 @@ getDocumentDownloadUrl(caseId, documentId) {
     return await response.json();
   },
 
-  // Products endpoints (if available)
+  // Products endpoints
   async getCaseProducts(caseId) {
     const token = await authService.getToken();
     if (!token) throw new Error("UNAUTHORIZED");
@@ -278,7 +272,7 @@ getDocumentDownloadUrl(caseId, documentId) {
     return await response.json();
   },
 
-  // Recordings endpoints (if available)
+  // Recordings endpoints
   async getCaseRecordings(caseId) {
     const token = await authService.getToken();
     if (!token) throw new Error("UNAUTHORIZED");
@@ -295,5 +289,24 @@ getDocumentDownloadUrl(caseId, documentId) {
     if (!response.ok) throw new Error("Failed to fetch recordings");
 
     return await response.json();
+  },
+
+  // Job Sheet endpoint
+  async getJobSheetHtml(caseId) {
+    const token = await authService.getToken();
+    if (!token) throw new Error("UNAUTHORIZED");
+
+    const response = await fetch(`${API_URL}/job-sheets/html?caseId=${caseId}`, {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      },
+    });
+
+    if (response.status === 401) throw new Error("UNAUTHORIZED");
+    if (response.status === 403) throw new Error("FORBIDDEN");
+    if (response.status === 404) throw new Error("Job sheet not found");
+    if (!response.ok) throw new Error("Failed to fetch job sheet");
+
+    return await response.text();
   },
 };

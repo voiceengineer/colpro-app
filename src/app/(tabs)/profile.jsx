@@ -25,6 +25,7 @@ export default function Profile() {
   const languages = [
     { code: 'en', name: 'English', flag: '🇺🇸' },
     { code: 'uz', name: "O'zbekcha", flag: '🇺🇿' },
+    { code: 'ru', name: 'Русский', flag: '🇷🇺' },
   ];
 
   const handleLanguageChange = (langCode) => {
@@ -130,7 +131,12 @@ export default function Profile() {
     if (!dateString) return t('common.notAvailable');
     try {
       const date = new Date(dateString);
-      return date.toLocaleDateString(i18n.language === 'uz' ? 'uz-UZ' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+      const locales = {
+        en: 'en-US',
+        uz: 'uz-UZ',
+        ru: 'ru-RU'
+      }
+      return date.toLocaleDateString(locales[i18n.language] || 'en-US', { year: 'numeric', month: 'short', day: 'numeric' });
     } catch { return t('common.notAvailable'); }
   };
 

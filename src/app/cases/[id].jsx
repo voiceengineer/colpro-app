@@ -1,17 +1,19 @@
+
 import React, { useState } from 'react';
 import { 
   View, Text, TouchableOpacity, ScrollView, 
   ActivityIndicator, Alert, Dimensions, RefreshControl,
   Linking, Platform
 } from 'react-native';
+import { WebView } from 'react-native-webview';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { 
   ArrowLeft, User, Phone, MapPin, CreditCard, 
   Calendar, DollarSign, AlertCircle, FileText,
-  Package, Receipt, Mic, Copy, CheckCircle, Camera, Image as ImageIcon,
-  Eye, EyeOff, Download,
+  Package, Receipt, Mic, Copy, CheckCircle, Camera, 
+  Eye, EyeOff, Download, Share2,
 } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
@@ -33,6 +35,7 @@ export default function CaseDetailsPage() {
   
   const TABS = [
     { id: 'info', label: t('caseDetails.tabs.info'), icon: User },
+    { id: 'jobsheet', label: 'Job Sheet', icon: FileText },
     { id: 'products', label: t('caseDetails.tabs.products'), icon: Package },
     { id: 'payments', label: t('caseDetails.tabs.payments'), icon: Receipt },
     { id: 'documents', label: t('caseDetails.tabs.docs'), icon: FileText },
@@ -314,6 +317,10 @@ export default function CaseDetailsPage() {
           />
         )}
         
+        {activeTab === 'jobsheet' && (
+          <JobSheetTab caseId={id} t={t} />
+        )}
+        
         {activeTab === 'products' && (
           <ProductsTab caseId={id} account={account} formatCurrency={formatCurrency} t={t} />
         )}
@@ -334,7 +341,9 @@ export default function CaseDetailsPage() {
   );
 }
 
-// Client Info Tab Component
+// ============================================
+// CLIENT INFO TAB COMPONENT
+// ============================================
 function ClientInfoTab({ 
   account, 
   caseData, 
@@ -605,6 +614,193 @@ function ClientInfoTab({
   );
 }
 
+// ============================================
+// JOB SHEET TAB COMPONENT
+// ============================================
+function JobSheetTab({ caseId, t }) {
+  const [htmlContent, setHtmlContent] = React.useState('');
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState(null);
+  const [sharing, setSharing] = React.useState(false);
+
+  React.useEffect(() => {
+    fetchJobSheet();
+  }, [caseId]);
+
+  const fetchJobSheet = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const html = await casesService.getJobSheetHtml(caseId);
+      setHtmlContent(html);
+    } catch (err) {
+      console.error('Failed to fetch job sheet:', err);
+      setError(err.message || 'Failed to load job sheet');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleShare = async () => {
+    try {
+      setSharing(true);
+      
+      const fileName = `job_sheet_case_${caseId}.html`;
+      const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+      
+      await FileSystem.writeAsStringAsync(fileUri, htmlContent, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (!isAvailable) {
+        Alert.alert(t('common.error'), 'Sharing is not available on this device');
+        return;
+      }
+
+      await Sharing.shareAsync(fileUri, {
+        mimeType: 'text/html',
+        dialogTitle: `Job Sheet - Case #${caseId}`,
+        UTI: 'public.html',
+      });
+
+    } catch (error) {
+      console.error('Share error:', error);
+      Alert.alert(t('common.error'), 'Failed to share job sheet');
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
+        <ActivityIndicator size="large" color="#3b82f6" />
+        <Text style={{ color: '#64748b', fontSize: 14, marginTop: 16 }}>
+          Loading job sheet...
+        </Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
+        <AlertCircle color="#ef4444" size={48} />
+        <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600', marginTop: 16 }}>
+          Failed to Load
+        </Text>
+        <Text style={{ color: '#64748b', fontSize: 14, marginTop: 8, textAlign: 'center' }}>
+          {error}
+        </Text>
+        <TouchableOpacity
+          onPress={fetchJobSheet}
+          style={{
+            backgroundColor: '#3b82f6',
+            paddingHorizontal: 24,
+            paddingVertical: 12,
+            borderRadius: 8,
+            marginTop: 24,
+          }}
+        >
+          <Text style={{ color: '#ffffff', fontSize: 14, fontWeight: '600' }}>
+            Retry
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ flex: 1, minHeight: 600 }}>
+      <View style={{ 
+        flexDirection: 'row', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        marginBottom: 16 
+      }}>
+        <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: 'bold' }}>
+          Job Sheet
+        </Text>
+        
+        <TouchableOpacity
+          onPress={handleShare}
+          disabled={sharing}
+          style={{
+            backgroundColor: '#10b981',
+            paddingHorizontal: 16,
+            paddingVertical: 10,
+            borderRadius: 8,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 8,
+          }}
+          accessibilityLabel="Share job sheet"
+          accessibilityRole="button"
+        >
+          {sharing ? (
+            <ActivityIndicator size="small" color="#ffffff" />
+          ) : (
+            <>
+              <Share2 color="#ffffff" size={18} />
+              <Text style={{ color: '#ffffff', fontSize: 14, fontWeight: '600' }}>
+                Share
+              </Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      <View style={{ 
+        flex: 1, 
+        backgroundColor: '#ffffff',
+        borderRadius: 10,
+        overflow: 'hidden',
+        minHeight: 500,
+      }}>
+        <WebView
+          originWhitelist={['*']}
+          source={{ html: htmlContent }}
+          style={{ flex: 1, backgroundColor: '#ffffff' }}
+          scalesPageToFit={true}
+          javaScriptEnabled={true}
+          domStorageEnabled={true}
+          startInLoadingState={true}
+          renderLoading={() => (
+            <View style={{ 
+              position: 'absolute', 
+              top: 0, 
+              left: 0, 
+              right: 0, 
+              bottom: 0,
+              justifyContent: 'center', 
+              alignItems: 'center',
+              backgroundColor: '#ffffff' 
+            }}>
+              <ActivityIndicator size="large" color="#3b82f6" />
+            </View>
+          )}
+        />
+      </View>
+
+      <View style={{
+        backgroundColor: '#1e293b',
+        borderRadius: 8,
+        padding: 12,
+        marginTop: 16,
+        borderWidth: 1,
+        borderColor: '#334155',
+      }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <FileText color="#64748b" size={16} />
+          <Text style={{ color: '#64748b', fontSize: 12, marginLeft: 8 }}>
+            This job sheet can be shared to WhatsApp, Telegram, Email, and other apps
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+}
 // Products Tab Component
 function ProductsTab({ caseId, account, formatCurrency, t }) {
   return (
