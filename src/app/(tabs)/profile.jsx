@@ -24,12 +24,10 @@ export default function Profile() {
 
   const languages = [
     { code: 'en', name: 'English', flag: '🇺🇸' },
-    { code: 'uz', name: "O'zbekcha", flag: '🇺🇿' },
-    { code: 'ru', name: 'Русский', flag: '🇷🇺' },
   ];
 
   const handleLanguageChange = (langCode) => {
-    i18n.changeLanguage(langCode);
+    i18n.changeLanguage('en');
     setShowLanguageModal(false);
   };
 
@@ -132,9 +130,7 @@ export default function Profile() {
     try {
       const date = new Date(dateString);
       const locales = {
-        en: 'en-US',
-        uz: 'uz-UZ',
-        ru: 'ru-RU'
+        en: 'en-US'
       }
       return date.toLocaleDateString(locales[i18n.language] || 'en-US', { year: 'numeric', month: 'short', day: 'numeric' });
     } catch { return t('common.notAvailable'); }

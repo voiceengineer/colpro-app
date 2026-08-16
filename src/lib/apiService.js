@@ -1,6 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 
-const API_URL = "https://dev.collpro.uz/api";
+const API_URL = "https://mercantile-varahi.wm4tech.com/api";
 const TOKEN_KEY = "auth_token";
 const USER_KEY = "user_data";
 
@@ -16,10 +16,10 @@ export const apiService = {
 
       if (isNumeric) {
         if (!cleaned.startsWith('+')) {
-          if (cleaned.startsWith('998') && cleaned.length === 12) {
+          if (cleaned.startsWith('60') && cleaned.length === 12) {
             loginId = '+' + cleaned;
           } else if (cleaned.length === 9) {
-            loginId = '+998' + cleaned;
+            loginId = '+60' + cleaned;
           }
         } else {
             // It has +, ensure no spaces in the final string

@@ -24,11 +24,10 @@ export default function Settings() {
       'Are you sure you want to logout?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Logout', 
+        {
+          text: 'Logout',
           style: 'destructive',
           onPress: () => {
-            // Handle logout logic here
             console.log('User logged out');
           }
         }
@@ -40,96 +39,101 @@ export default function Settings() {
     <TouchableOpacity
       onPress={onPress}
       style={{
-        backgroundColor: '#1e293b',
-        borderRadius: 12,
+        backgroundColor: 'rgba(15, 23, 42, 0.9)',
+        borderRadius: 16,
         padding: 16,
         marginHorizontal: 16,
         marginBottom: 12,
         borderWidth: 1,
-        borderColor: '#334155',
+        borderColor: 'rgba(148, 163, 184, 0.18)',
         flexDirection: 'row',
         alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.2,
+        shadowRadius: 10,
+        elevation: 4,
       }}
     >
       <View
         style={{
-          backgroundColor: '#334155',
-          borderRadius: 10,
-          padding: 10,
-          marginRight: 16,
+          backgroundColor: `${color}22`,
+          borderRadius: 12,
+          width: 44,
+          height: 44,
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginRight: 14,
         }}
       >
         <Icon color={color} size={20} />
       </View>
-      
+
       <View style={{ flex: 1 }}>
-        <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600', marginBottom: 2 }}>
+        <Text style={{ color: '#f8fafc', fontSize: 16, fontWeight: '700', marginBottom: 2 }}>
           {title}
         </Text>
         {subtitle && (
-          <Text style={{ color: '#94a3b8', fontSize: 14 }}>
+          <Text style={{ color: '#94a3b8', fontSize: 13, fontWeight: '500' }}>
             {subtitle}
           </Text>
         )}
       </View>
-      
+
       {showChevron && (
-        <ChevronRight color="#64748b" size={20} />
+        <ChevronRight color="#94a3b8" size={18} />
       )}
     </TouchableOpacity>
   );
 
   const SectionHeader = ({ title }) => (
-    <Text style={{ 
-      color: '#94a3b8', 
-      fontSize: 14, 
-      fontWeight: '600', 
-      marginLeft: 16, 
-      marginTop: 24, 
-      marginBottom: 12,
+    <Text style={{
+      color: '#9fb3c8',
+      fontSize: 12,
+      fontWeight: '700',
+      marginLeft: 16,
+      marginTop: 24,
+      marginBottom: 10,
       textTransform: 'uppercase',
-      letterSpacing: 0.5
+      letterSpacing: 1.2
     }}>
       {title}
     </Text>
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#0f172a' }}>
+    <View style={{ flex: 1, backgroundColor: '#07111f' }}>
       <StatusBar style="light" />
-      
-      {/* Header */}
+
       <View
         style={{
           paddingTop: insets.top + 20,
           paddingHorizontal: 20,
           paddingBottom: 20,
-          backgroundColor: '#1e293b',
+          backgroundColor: '#0f172a',
           borderBottomWidth: 1,
-          borderBottomColor: '#334155',
+          borderBottomColor: 'rgba(148, 163, 184, 0.16)',
         }}
       >
-        <Text style={{ color: '#ffffff', fontSize: 24, fontWeight: 'bold' }}>
+        <Text style={{ color: '#f8fafc', fontSize: 28, fontWeight: '800', letterSpacing: -0.5 }}>
           Settings
         </Text>
       </View>
 
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 20, paddingTop: 8 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 20, paddingTop: 10 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Profile Section */}
         <SectionHeader title="Profile" />
         <SettingsItem
           icon={User}
           title="Profile Information"
           subtitle="Update your personal details"
           onPress={() => console.log('Profile pressed')}
-          color="#3b82f6"
+          color="#60a5fa"
         />
 
-        {/* App Settings */}
         <SectionHeader title="App Settings" />
         <SettingsItem
           icon={Bell}
@@ -143,90 +147,86 @@ export default function Settings() {
           title="Privacy & Security"
           subtitle="Control your privacy settings"
           onPress={() => console.log('Privacy pressed')}
-          color="#10b981"
+          color="#34d399"
         />
         <SettingsItem
           icon={Database}
           title="Data Sync"
           subtitle="Sync settings and offline data"
           onPress={() => console.log('Data sync pressed')}
-          color="#8b5cf6"
+          color="#a78bfa"
         />
 
-        {/* Reports & Analytics */}
         <SectionHeader title="Reports" />
         <SettingsItem
           icon={BarChart3}
           title="Performance Reports"
           subtitle="View collection statistics"
           onPress={() => console.log('Reports pressed')}
-          color="#06b6d4"
+          color="#22d3ee"
         />
         <SettingsItem
           icon={FileText}
           title="Export Data"
           subtitle="Export visit reports and data"
           onPress={() => console.log('Export pressed')}
-          color="#84cc16"
+          color="#a3e635"
         />
 
-        {/* Support */}
         <SectionHeader title="Support" />
         <SettingsItem
           icon={HelpCircle}
           title="Help & Support"
           subtitle="Get help and contact support"
           onPress={() => console.log('Help pressed')}
-          color="#64748b"
+          color="#94a3b8"
         />
         <SettingsItem
           icon={FileText}
           title="Terms & Privacy"
           subtitle="Read our terms and privacy policy"
           onPress={() => console.log('Terms pressed')}
-          color="#64748b"
+          color="#cbd5e1"
         />
 
-        {/* App Info */}
         <View
           style={{
-            backgroundColor: '#1e293b',
-            borderRadius: 12,
-            padding: 16,
+            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+            borderRadius: 16,
+            padding: 18,
             marginHorizontal: 16,
             marginTop: 12,
             marginBottom: 24,
             borderWidth: 1,
-            borderColor: '#334155',
+            borderColor: 'rgba(148, 163, 184, 0.18)',
             alignItems: 'center',
           }}
         >
-          <Text style={{ color: '#94a3b8', fontSize: 14, marginBottom: 4 }}>
-            CollPro Mobile
+          <Text style={{ color: '#cbd5e1', fontSize: 14, fontWeight: '600', marginBottom: 4 }}>
+            Varahi Mobile
           </Text>
-          <Text style={{ color: '#64748b', fontSize: 12 }}>
+          <Text style={{ color: '#64748b', fontSize: 12, fontWeight: '500' }}>
             Version 1.0.0
           </Text>
         </View>
 
-        {/* Logout */}
         <TouchableOpacity
           onPress={handleLogout}
           style={{
-            backgroundColor: '#dc262620',
-            borderRadius: 12,
+            backgroundColor: 'rgba(239, 68, 68, 0.12)',
+            borderRadius: 16,
             padding: 16,
             marginHorizontal: 16,
             marginBottom: 20,
             borderWidth: 1,
-            borderColor: '#dc2626',
+            borderColor: 'rgba(239, 68, 68, 0.35)',
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'center',
           }}
         >
-          <LogOut color="#dc2626" size={20} />
-          <Text style={{ color: '#dc2626', fontSize: 16, fontWeight: '600', marginLeft: 8 }}>
+          <LogOut color="#f87171" size={20} />
+          <Text style={{ color: '#fca5a5', fontSize: 16, fontWeight: '700', marginLeft: 8 }}>
             Logout
           </Text>
         </TouchableOpacity>

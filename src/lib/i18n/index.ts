@@ -1,16 +1,11 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
-import { getLocales } from "expo-localization";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import en from "./locales/en.json";
-import uz from "./locales/uz.json";
-import ru from "./locales/ru.json";
 
 const resources = {
   en: { translation: en },
-  uz: { translation: uz },
-  ru: { translation: ru },
 };
 
 const LANGUAGE_DETECTOR = {
@@ -18,19 +13,11 @@ const LANGUAGE_DETECTOR = {
   async: true,
   detect: (callback: (lang: string) => void) => {
     AsyncStorage.getItem("user-language", (err, language) => {
-      // if error or no language, fallback to device language
       if (err || !language) {
-        const locales = getLocales();
-        const deviceLanguage = locales[0]?.languageCode ?? "en";
-        const supportedLanguages = ["en", "uz", "ru"];
-        if (supportedLanguages.includes(deviceLanguage)) {
-          callback(deviceLanguage);
-        } else {
-          callback("en");
-        }
+        callback("en");
         return;
       }
-      callback(language);
+      callback(language === "en" ? "en" : "en");
     });
   },
   init: () => {},

@@ -1,8 +1,9 @@
 {
   "expo": {
-    "name": "Coll Pro",
+    "name": "Varahi",
+    "slug": "coll-pro",
     "version": "1.0.0",
-    "scheme": "collpro",
+    "scheme": "varahi",
     "orientation": "portrait",
     "icon": "./assets/images/new-icon-1.png",
     "userInterfaceStyle": "automatic",
@@ -12,19 +13,23 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSFaceIDUsageDescription": "Allow Face ID to login securely to your account"
-      }
+      },
+      "bundleIdentifier": "xyz.create.CreateExpoEnvironment"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon-new-2.png",
-        "resizeMode": "contain",
         "backgroundColor": "#262b3e"
       },
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.USE_BIOMETRIC",
-        "android.permission.USE_FINGERPRINT"
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+        "android.permission.READ_MEDIA_IMAGES"
       ],
       "package": "xyz.create.CreateExpoEnvironment"
     },
@@ -72,7 +77,10 @@
         }
       ],
       "@react-native-community/datetimepicker",
-      "expo-localization"
+      "expo-localization",
+      "expo-asset",
+      "expo-font",
+      "expo-web-browser"
     ],
     "web": {
       "bundler": "metro",
@@ -90,9 +98,7 @@
         "projectId": "22d93417-261b-42e1-8096-46a51e86a9f6"
       }
     },
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
+    "runtimeVersion": "1.0.0",
     "owner": "voiceengineer5593"
   }
 }

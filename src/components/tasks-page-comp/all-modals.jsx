@@ -152,7 +152,7 @@ export function VisitRemarksModal({ visible, onClose, visitPhotoRemarks, setVisi
 
       const photoUri = photo.uri;
       const originalFileName = photo.fileName || `photo_${Date.now()}.jpg`;
-      const uploadUrl = `https://dev.collpro.uz/api/field-visit/tasks/${taskId}/attachments`;
+      const uploadUrl = `https://mercantile-varahi.wm4tech.com/api/field-visit/tasks/${taskId}/attachments`;
 
       const formData = new FormData();
       formData.append('file', { uri: photoUri, type: 'image/jpeg', name: originalFileName });

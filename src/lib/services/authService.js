@@ -1,6 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 
-const API_URL = "https://dev.collpro.uz/api";
+const API_URL = "https://mercantile-varahi.wm4tech.com/api";
 const TOKEN_KEY = "auth_token";
 const USER_KEY = "user_data";
 

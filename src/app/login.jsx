@@ -34,14 +34,22 @@ export default function Login() {
   const [toast, setToast] = useState({ show: false, message: '', type: 'error' });
   const [loading, setLoading] = useState(false);
   const [fadeAnim] = useState(new Animated.Value(0));
+  const [scaleAnim] = useState(new Animated.Value(0.8));
   const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 600,
-      useNativeDriver: true,
-    }).start();
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      })
+    ]).start();
 
     const keyboardDidShowListener = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
@@ -144,23 +152,33 @@ export default function Login() {
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <View style={{
         position: 'absolute',
-        top: -100,
-        right: -100,
+        top: -120,
+        right: -60,
+        width: 340,
+        height: 340,
+        backgroundColor: '#4f46e5',
+        opacity: 0.22,
+        borderRadius: 170,
+      }} />
+      <View style={{
+        position: 'absolute',
+        bottom: -80,
+        left: -90,
         width: 300,
         height: 300,
-        backgroundColor: '#3b82f6',
-        opacity: 0.1,
+        backgroundColor: '#06b6d4',
+        opacity: 0.16,
         borderRadius: 150,
       }} />
       <View style={{
         position: 'absolute',
-        bottom: 100,
-        left: -80,
-        width: 250,
-        height: 250,
+        top: '35%',
+        left: '12%',
+        width: 220,
+        height: 220,
         backgroundColor: '#8b5cf6',
         opacity: 0.08,
-        borderRadius: 125,
+        borderRadius: 110,
       }} />
     </View>
   );
@@ -173,8 +191,20 @@ export default function Login() {
 
         <Animated.View style={[
           styles.landingContent,
-          { opacity: fadeAnim, paddingTop: insets.top + 100, paddingBottom: insets.bottom + 40 }
+          { opacity: fadeAnim, paddingTop: insets.top + 80, paddingBottom: insets.bottom + 40 }
         ]}>
+          {/* Animated Varahi Branding */}
+          <Animated.View style={[
+            styles.brandingContainer,
+            { 
+              opacity: fadeAnim,
+              transform: [{ scale: scaleAnim }]
+            }
+          ]}>
+            <Text style={styles.varahiBranding}>Varahi</Text>
+            <Text style={styles.brandingSubtitle}>Field Excellence</Text>
+          </Animated.View>
+
           <View style={styles.landingHeader}>
             <View style={styles.landingLogoContainer}>
               <Lock color="#ffffff" size={48} strokeWidth={2} />
@@ -384,7 +414,7 @@ export default function Login() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f172a',
+    backgroundColor: '#07111f',
   },
   landingContent: {
     flex: 1,
@@ -397,109 +427,114 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   landingLogoContainer: {
-    backgroundColor: '#2563eb',
-    borderRadius: 30,
-    width: 100,
-    height: 100,
+    backgroundColor: '#4f46e5',
+    borderRadius: 32,
+    width: 110,
+    height: 110,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 32,
-    shadowColor: '#2563eb',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.4,
-    shadowRadius: 20,
+    marginBottom: 28,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    shadowColor: '#4f46e5',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.42,
+    shadowRadius: 22,
     elevation: 12,
   },
   landingTitle: {
     color: '#ffffff',
     fontSize: 36,
-    fontWeight: 'bold',
-    marginBottom: 12,
+    fontWeight: '800',
+    marginBottom: 10,
     textAlign: 'center',
+    letterSpacing: -0.6,
   },
   landingSubtitle: {
-    color: '#94a3b8',
+    color: '#b6c2d8',
     fontSize: 18,
     textAlign: 'center',
+    lineHeight: 26,
   },
   landingButtons: {
     width: '100%',
     gap: 16,
   },
   landingButtonPrimary: {
-    backgroundColor: '#2563eb',
-    borderRadius: 16,
+    backgroundColor: '#4f46e5',
+    borderRadius: 18,
     paddingVertical: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#2563eb',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowColor: '#4f46e5',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.32,
+    shadowRadius: 20,
+    elevation: 10,
   },
   landingButtonTextPrimary: {
     color: '#ffffff',
     fontSize: 18,
-    fontWeight: 'bold',
-    marginRight: 12,
+    fontWeight: '700',
+    marginRight: 10,
   },
   landingButtonSecondary: {
-    backgroundColor: '#1e293b',
-    borderRadius: 16,
-    paddingVertical: 20,
+    backgroundColor: 'rgba(15, 23, 42, 0.72)',
+    borderRadius: 18,
+    paddingVertical: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: '#334155',
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.28)',
   },
   landingButtonTextSecondary: {
-    color: '#ffffff',
-    fontSize: 18,
+    color: '#f8fafc',
+    fontSize: 17,
     fontWeight: '600',
   },
   versionText: {
-    color: '#475569',
+    color: '#7c8ca8',
     fontSize: 12,
     marginBottom: 20,
+    letterSpacing: 0.4,
   },
   backButton: {
     position: 'absolute',
     left: 24,
     zIndex: 10,
-    backgroundColor: '#1e293b',
-    borderRadius: 12,
+    backgroundColor: 'rgba(15, 23, 42, 0.82)',
+    borderRadius: 14,
     width: 44,
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: 'rgba(148, 163, 184, 0.25)',
   },
   toast: {
     position: 'absolute',
     left: 24,
     right: 24,
     zIndex: 20,
-    backgroundColor: '#1e293b',
-    borderRadius: 12,
+    backgroundColor: 'rgba(15, 23, 42, 0.96)',
+    borderRadius: 14,
     borderWidth: 1,
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 6,
   },
   toastText: {
     flex: 1,
     color: '#ffffff',
     fontSize: 14,
     marginLeft: 12,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   toastClose: {
     padding: 4,
@@ -514,50 +549,52 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 32,
   },
   logoContainer: {
-    backgroundColor: '#2563eb',
-    borderRadius: 20,
-    width: 80,
-    height: 80,
+    backgroundColor: '#4f46e5',
+    borderRadius: 24,
+    width: 84,
+    height: 84,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
-    shadowColor: '#2563eb',
-    shadowOffset: { width: 0, height: 8 },
+    marginBottom: 18,
+    shadowColor: '#4f46e5',
+    shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.3,
-    shadowRadius: 12,
+    shadowRadius: 16,
     elevation: 8,
   },
   title: {
     color: '#ffffff',
-    fontSize: 28,
-    fontWeight: 'bold',
+    fontSize: 29,
+    fontWeight: '800',
     marginBottom: 8,
+    letterSpacing: -0.4,
   },
   subtitle: {
-    color: '#94a3b8',
+    color: '#b6c2d8',
     fontSize: 15,
+    lineHeight: 22,
   },
   biometricButton: {
-    backgroundColor: '#9333ea',
-    borderRadius: 14,
+    backgroundColor: '#7c3aed',
+    borderRadius: 16,
     paddingVertical: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
-    shadowColor: '#9333ea',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowColor: '#7c3aed',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.28,
+    shadowRadius: 12,
+    elevation: 5,
   },
   biometricButtonText: {
     color: '#ffffff',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '700',
     marginLeft: 10,
   },
   divider: {
@@ -568,13 +605,14 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#334155',
+    backgroundColor: 'rgba(148,163,184,0.25)',
   },
   dividerText: {
-    color: '#64748b',
-    fontSize: 14,
+    color: '#8aa0bd',
+    fontSize: 13,
     marginHorizontal: 16,
-    fontWeight: '500',
+    fontWeight: '600',
+    letterSpacing: 0.8,
   },
   formContainer: {
     width: '100%',
@@ -583,26 +621,27 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   label: {
-    color: '#94a3b8',
-    fontSize: 14,
-    fontWeight: '600',
+    color: '#cbd5e1',
+    fontSize: 13,
+    fontWeight: '700',
     marginBottom: 8,
+    letterSpacing: 0.3,
   },
   inputContainer: {
-    backgroundColor: '#1e293b',
-    borderRadius: 12,
+    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: 'rgba(148,163,184,0.22)',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
   },
   input: {
     flex: 1,
-    color: '#ffffff',
+    color: '#f8fafc',
     fontSize: 16,
     paddingVertical: 16,
-    marginLeft: 12,
+    marginLeft: 10,
   },
   eyeButton: {
     padding: 4,
@@ -613,30 +652,54 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   forgotPasswordText: {
-    color: '#3b82f6',
+    color: '#7dd3fc',
     fontSize: 14,
     fontWeight: '600',
   },
   loginButton: {
     backgroundColor: '#2563eb',
-    borderRadius: 14,
+    borderRadius: 16,
     paddingVertical: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#2563eb',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.28,
+    shadowRadius: 12,
+    elevation: 6,
   },
   loginButtonText: {
     color: '#ffffff',
     fontSize: 17,
-    fontWeight: 'bold',
+    fontWeight: '700',
     marginRight: 8,
   },
   buttonDisabled: {
     opacity: 0.6,
+  },
+  brandingContainer: {
+    alignItems: 'center',
+    marginBottom: 48,
+    marginTop: 20,
+  },
+  varahiBranding: {
+    fontSize: 56,
+    fontWeight: '900',
+    color: '#ffffff',
+    fontStyle: 'italic',
+    letterSpacing: -1.2,
+    lineHeight: 62,
+    textShadowColor: 'rgba(79, 70, 229, 0.3)',
+    textShadowOffset: { width: 0, height: 8 },
+    textShadowRadius: 12,
+  },
+  brandingSubtitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#60a5fa',
+    marginTop: 8,
+    letterSpacing: 1.8,
+    textTransform: 'uppercase',
   },
 });

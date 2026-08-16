@@ -1,6 +1,6 @@
 import { authService } from './authService';
 
-const API_URL = "https://dev.collpro.uz/api";
+const API_URL = "https://mercantile-varahi.wm4tech.com/api";
 
 export const paymentsService = {
   async getPaymentHistory(accountId) {
